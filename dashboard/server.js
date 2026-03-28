@@ -61,6 +61,7 @@ async function api(pathname, options = {}) {
 }
 
 async function createRequestFromCase(testCase) {
+  const input = testCase.input.toLowerCase();
   const payload = {
     input: testCase.input,
     source: 'test-corpus',
@@ -68,10 +69,10 @@ async function createRequestFromCase(testCase) {
   };
 
   if (testCase.expectedClassification === 'access-request') {
-    payload.targetSystem = 'identity-platform';
-    payload.requestedAccess = testCase.input.toLowerCase().includes('admin') ? 'temporary-admin' : 'baseline-access';
-    payload.justification = 'Scenario data for dashboard visualization.';
-    payload.managerApprovalProvided = !testCase.input.toLowerCase().includes('temporary admin');
+    payload.targetSystem = input.includes('admin console') ? null : 'identity-platform';
+    payload.requestedAccess = input.includes('admin') ? 'temporary-admin' : 'baseline-access';
+    payload.justification = input.includes('does not specify') ? null : 'Scenario data for dashboard visualization.';
+    payload.managerApprovalProvided = !input.includes('temporary admin') && !input.includes('does not specify');
   }
 
   return api('/api/requests', {
@@ -81,6 +82,7 @@ async function createRequestFromCase(testCase) {
 }
 
 function syntheticTraceFor(item, approvals = []) {
+  const input = item.input.toLowerCase();
   const base = [
     {
       type: 'workflow.entered_queue',
@@ -98,6 +100,21 @@ function syntheticTraceFor(item, approvals = []) {
       data: { summary: `${item.owner} took ownership of the request.` }
     }
   ];
+
+  if (input.includes('does not specify')) {
+    base.push(
+      {
+        type: 'human.clarification.requested',
+        actor: 'iam-lead',
+        data: { summary: 'Human requester clarification is needed before access work can proceed.' }
+      },
+      {
+        type: 'human.clarification.received',
+        actor: 'requester',
+        data: { summary: 'The requester provided missing environment and business context.' }
+      }
+    );
+  }
 
   if (item.classification === 'access-request') {
     base.push(
@@ -140,7 +157,35 @@ function syntheticTraceFor(item, approvals = []) {
         type: 'execution.investigation.started',
         actor: 'incident-triage-specialist',
         data: { summary: 'Incident triage began investigating service health.' }
-      },
+      }
+    );
+
+    if (input.includes('incident commander')) {
+      base.push(
+        {
+          type: 'human.decision.requested',
+          actor: 'incident-lead',
+          data: { summary: 'A human incident commander must choose whether to proceed with rollback.' }
+        },
+        {
+          type: 'human.takeover.started',
+          actor: 'incident-commander',
+          data: { summary: 'A human incident commander temporarily took control of the decision path.' }
+        },
+        {
+          type: 'human.decision.recorded',
+          actor: 'incident-commander',
+          data: { summary: 'The human incident commander selected the rollback path.' }
+        },
+        {
+          type: 'human.takeover.completed',
+          actor: 'incident-commander',
+          data: { summary: 'Control returned to the automated workflow after the human decision.' }
+        }
+      );
+    }
+
+    base.push(
       {
         type: 'execution.change.applied',
         actor: 'incident-lead',
@@ -160,6 +205,16 @@ function syntheticTraceFor(item, approvals = []) {
         type: 'policy.check.started',
         actor: 'systems-lead',
         data: { summary: 'Change safety review started.' }
+      },
+      {
+        type: 'human.execution.required',
+        actor: 'systems-lead',
+        data: { summary: 'A human operator must execute the final risky infrastructure step.' }
+      },
+      {
+        type: 'human.execution.completed',
+        actor: 'human-operator',
+        data: { summary: 'A human operator executed the final infrastructure change step.' }
       },
       {
         type: 'execution.change.applied',
@@ -223,6 +278,7 @@ async function seedFromTestsIfNeeded() {
 }
 
 function deriveHumanEvents(item) {
+  const input = item.input.toLowerCase();
   const approvals = item.approvals || [];
   const events = approvals.map((approval) => ({
     kind: 'approval',
@@ -231,6 +287,36 @@ function deriveHumanEvents(item) {
     role: approval.requiredApproverRole,
     summary: `${approval.requiredApproverRole} ${approval.status || 'pending'} this request.`
   }));
+
+  if (input.includes('does not specify')) {
+    events.unshift({
+      kind: 'clarification',
+      title: 'Requester Clarification',
+      state: 'pending',
+      role: 'requester',
+      summary: 'The workflow needs a human requester to clarify environment and justification.'
+    });
+  }
+
+  if (item.actualClassification === 'infrastructure-change') {
+    events.push({
+      kind: 'execution',
+      title: 'Human Execution Step',
+      state: 'approved',
+      role: 'human-operator',
+      summary: 'A human operator executes the final high-risk infrastructure action.'
+    });
+  }
+
+  if (input.includes('incident commander')) {
+    events.push({
+      kind: 'decision',
+      title: 'Incident Commander Decision',
+      state: 'override',
+      role: 'incident-commander',
+      summary: 'A human incident commander decides whether rollback should proceed.'
+    });
+  }
 
   if (item.status === 'blocked') {
     events.push({
@@ -324,7 +410,6 @@ async function buildRuntimePayload() {
       actualOwner: item.owner,
       route: buildRoute(item),
       artifact: artifacts[0] || null,
-      traceCount: trace.length,
       approvals: requestApprovals,
     };
     const syntheticTrace = syntheticTraceFor(enrichedItem, requestApprovals);

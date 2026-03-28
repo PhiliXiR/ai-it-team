@@ -38,5 +38,15 @@
     "input": "A change request proposes tuning a backend configuration setting in the identity platform before the maintenance window",
     "expectedClassification": "infrastructure-change",
     "expectedOwner": "systems-lead"
+  },
+  {
+    "input": "A requester asks for access to a sensitive admin console but does not specify which environment or why",
+    "expectedClassification": "access-request",
+    "expectedOwner": "iam-lead"
+  },
+  {
+    "input": "An incident triage bot recommends a rollback, but a human incident commander must choose whether to proceed",
+    "expectedClassification": "incident",
+    "expectedOwner": "incident-lead"
   }
 ]
