@@ -3,6 +3,7 @@ const results = document.getElementById('results');
 const inspectorRequestList = document.getElementById('inspectorRequestList');
 const runtimeStrip = document.getElementById('runtimeStrip');
 const refreshBtn = document.getElementById('refreshBtn');
+const backBtn = document.getElementById('backBtn');
 const pauseBtn = document.getElementById('pauseBtn');
 const resumeBtn = document.getElementById('resumeBtn');
 const stepBtn = document.getElementById('stepBtn');
@@ -36,8 +37,8 @@ let history = [];
 let currentMode = 'visual';
 let selectedRequestId = null;
 let playbackPaused = false;
-let stageIndexByRequest = new Map();
 let autoAdvanceBusy = false;
+let timelineCursorByRequest = new Map();
 
 function statusTag(status) {
   return `status-${status}`;
@@ -117,28 +118,58 @@ function workflowModel(item) {
     { label: artifactNode, type: 'artifact', nodeId: null, message: 'The workflow produces an artifact or output record.' }
   ].filter(Boolean);
 
-  const defaultCurrent = stages.findIndex((stage) => stage.type === 'owner');
-  let currentIndex = defaultCurrent === -1 ? 0 : defaultCurrent;
-  if (item.status === 'awaiting-approval') {
-    const idx = stages.findIndex((stage) => stage.type === 'approval');
-    if (idx !== -1) currentIndex = idx;
-  } else if (item.status === 'in-progress') {
-    const idx = stages.findIndex((stage) => stage.type === 'system');
-    if (idx !== -1) currentIndex = idx;
+  return { stages };
+}
+
+function buildTimeline(item) {
+  const { stages } = workflowModel(item);
+  const executionSteps = deriveExecutionSteps(item);
+  const humanEvents = deriveHumanEvents(item);
+  const timeline = [];
+
+  for (const stage of stages) {
+    timeline.push({ kind: 'stage', stageType: stage.type, label: stage.label, nodeId: stage.nodeId, message: stage.message });
+
+    if (stage.type === 'approval') {
+      for (const event of humanEvents) {
+        timeline.push({ kind: 'human', stageType: stage.type, label: event.title, state: event.state, message: event.summary || event.detail, nodeId: 'security-director' });
+      }
+    }
+
+    if (stage.type === 'system') {
+      for (const step of executionSteps) {
+        timeline.push({ kind: 'execution', stageType: stage.type, label: prettifyNodeName(step.action || step.title), message: step.detail, nodeId: stage.nodeId });
+      }
+    }
   }
-  return { stages, currentIndex };
+
+  return timeline;
 }
 
-function getStageIndex(item) {
-  const model = workflowModel(item);
-  const saved = stageIndexByRequest.get(item.id);
-  if (typeof saved === 'number') return Math.max(0, Math.min(saved, model.stages.length - 1));
-  return model.currentIndex;
+function getTimelineCursor(item) {
+  const timeline = buildTimeline(item);
+  const saved = timelineCursorByRequest.get(item.id);
+  if (typeof saved === 'number') return Math.max(0, Math.min(saved, Math.max(0, timeline.length - 1)));
+  return 0;
 }
 
-function setStageIndex(item, index) {
-  const model = workflowModel(item);
-  stageIndexByRequest.set(item.id, Math.max(0, Math.min(index, model.stages.length - 1)));
+function setTimelineCursor(item, index) {
+  const timeline = buildTimeline(item);
+  timelineCursorByRequest.set(item.id, Math.max(0, Math.min(index, Math.max(0, timeline.length - 1))));
+}
+
+function getCurrentTimelineEntry(item, cursor) {
+  const timeline = buildTimeline(item);
+  return timeline[cursor] || timeline[0] || null;
+}
+
+function getActiveStageIndex(item, cursor) {
+  const timeline = buildTimeline(item);
+  let stageIndex = -1;
+  for (let i = 0; i <= cursor && i < timeline.length; i += 1) {
+    if (timeline[i].kind === 'stage') stageIndex += 1;
+  }
+  return Math.max(stageIndex, 0);
 }
 
 function stageState(index, activeIndex) {
@@ -154,9 +185,9 @@ function stageMetaText(state, step, isFinal) {
   return 'waiting';
 }
 
-function renderFlow(item, stageIndexOverride = null) {
-  const { stages, currentIndex } = workflowModel(item);
-  const stageIndex = stageIndexOverride ?? currentIndex;
+function renderFlow(item, cursor) {
+  const { stages } = workflowModel(item);
+  const stageIndex = getActiveStageIndex(item, cursor);
   flowPipeline.innerHTML = stages.map((step, index) => {
     const state = stageState(index, stageIndex);
     return `${index > 0 ? '<span class="flow-arrow">→</span>' : ''}
@@ -231,22 +262,17 @@ function renderAgentStatus() {
   `;
 }
 
-function renderPhaseTimeline(item, stageIndex) {
-  const { stages } = workflowModel(item);
+function renderPhaseTimeline(item, cursor) {
+  const timeline = buildTimeline(item);
   phaseTimelinePanel.innerHTML = `
     <h2>Phase Timeline</h2>
     <div class="phase-timeline">
-      ${stages.map((step, index) => {
-        const state = stageState(index, stageIndex);
-        const detail = state === 'completed'
-          ? 'Phase completed in playback.'
-          : state === 'current'
-            ? step.message
-            : 'Waiting for this phase to begin.';
+      ${timeline.map((entry, index) => {
+        const state = stageState(index, cursor);
         return `
           <div class="phase-entry ${state}">
-            <div class="phase-entry-title">${step.label}</div>
-            <div class="phase-entry-meta">${detail}</div>
+            <div class="phase-entry-title">${entry.label}</div>
+            <div class="phase-entry-meta">${state === 'completed' ? 'Completed in playback.' : state === 'current' ? entry.message : 'Waiting for this step to begin.'}</div>
           </div>
         `;
       }).join('')}
@@ -254,52 +280,50 @@ function renderPhaseTimeline(item, stageIndex) {
   `;
 }
 
-function renderHumanInvolvement(item) {
-  const humanEvents = deriveHumanEvents(item);
+function renderHumanInvolvement(item, cursor) {
+  const timeline = buildTimeline(item).filter((entry) => entry.kind === 'human');
+  const completedCount = buildTimeline(item).slice(0, cursor + 1).filter((entry) => entry.kind === 'human').length - 1;
   humanInvolvementPanel.innerHTML = `
     <h2>Human Involvement</h2>
     <div class="human-list">
-      ${humanEvents.map((event) => `
-        <div class="human-entry ${event.state}">
-          <div class="human-entry-title">${event.title}</div>
-          <div class="human-entry-meta">${event.summary || event.detail}</div>
-        </div>
-      `).join('')}
+      ${timeline.map((event, index) => {
+        const state = completedCount < 0 ? 'pending' : index < completedCount ? 'approved' : index === completedCount ? 'override' : 'pending';
+        return `
+          <div class="human-entry ${state}">
+            <div class="human-entry-title">${event.label}</div>
+            <div class="human-entry-meta">${event.message}</div>
+          </div>
+        `;
+      }).join('') || '<p>No human-specific steps for this request.</p>'}
     </div>
   `;
 }
 
-function renderExecutionTrace(item, stageIndex) {
-  const executionSteps = deriveExecutionSteps(item);
-  const systemStageIndex = workflowModel(item).stages.findIndex((stage) => stage.type === 'system');
-  const executionActiveIndex = systemStageIndex !== -1 && stageIndex >= systemStageIndex
-    ? Math.min(stageIndex - systemStageIndex, executionSteps.length - 1)
-    : -1;
-
+function renderExecutionTrace(item, cursor) {
+  const timeline = buildTimeline(item).filter((entry) => entry.kind === 'execution');
+  const completedCount = buildTimeline(item).slice(0, cursor + 1).filter((entry) => entry.kind === 'execution').length - 1;
   executionTracePanel.innerHTML = `
     <h2>Execution Trace</h2>
     <div class="execution-list">
-      ${executionSteps.map((step, index) => {
-        const state = executionActiveIndex === -1
-          ? 'upcoming'
-          : stageState(index, executionActiveIndex);
+      ${timeline.map((step, index) => {
+        const state = completedCount < 0 ? 'upcoming' : index < completedCount ? 'completed' : index === completedCount ? 'current' : 'upcoming';
         const detail = state === 'completed'
-          ? `${step.detail} Completed in playback.`
+          ? `${step.message} Completed in playback.`
           : state === 'current'
-            ? `${step.detail} Active now.`
-            : `${step.detail} Waiting.`;
+            ? `${step.message} Active now.`
+            : `${step.message} Waiting.`;
         return `
           <div class="execution-entry ${state}">
-            <div class="execution-entry-title">${prettifyNodeName(step.action || step.title)}</div>
+            <div class="execution-entry-title">${step.label}</div>
             <div class="execution-entry-meta">${detail}</div>
           </div>
         `;
-      }).join('')}
+      }).join('') || '<p>No execution steps for this request.</p>'}
     </div>
   `;
 }
 
-function renderVisualState(item, stageIndexOverride = null) {
+function renderVisualState(item, cursor) {
   if (!item) {
     currentCase.innerHTML = 'No active request selected.';
     ticketStatePanel.innerHTML = 'No current ticket state.';
@@ -311,16 +335,17 @@ function renderVisualState(item, stageIndexOverride = null) {
     return;
   }
 
-  const model = workflowModel(item);
-  const stageIndex = stageIndexOverride ?? getStageIndex(item);
-  const currentStage = model.stages[stageIndex]?.label || 'Unknown Stage';
-  const currentStageMessage = model.stages[stageIndex]?.message || 'No phase detail available.';
-  const nextStage = model.stages[stageIndex + 1]?.label || 'Workflow complete';
+  const entry = getCurrentTimelineEntry(item, cursor);
+  const stageIndex = getActiveStageIndex(item, cursor);
+  const { stages } = workflowModel(item);
+  const currentStage = stages[stageIndex]?.label || entry?.label || 'Unknown Step';
+  const nextEntry = buildTimeline(item)[cursor + 1];
+  const nextStep = nextEntry?.label || 'Workflow complete';
 
   currentCase.innerHTML = `
     <h2>Current Focus</h2>
     <div class="focus-title">${item.input}</div>
-    <p class="muted">This request is stepping through each workflow process one phase at a time.</p>
+    <p class="muted">This request now plays through a reversible timeline of workflow, human, and execution steps.</p>
     <div class="meta">
       <span class="tag">owner: ${item.actualOwner}</span>
       <span class="tag ${statusTag(item.status)}">${item.status}</span>
@@ -330,12 +355,19 @@ function renderVisualState(item, stageIndexOverride = null) {
 
   workflowActivityPanel.innerHTML = `
     <h2>Workflow Activity</h2>
-    ${(item.trace || []).slice(0, 4).map((entry) => `
+    <div class="history-entry">
+      <strong>${entry?.label || 'No current step'}</strong>
+      <div class="meta">
+        <span class="tag">${entry?.message || 'No detail available.'}</span>
+        <span class="tag">kind: ${entry?.kind || 'n/a'}</span>
+      </div>
+    </div>
+    ${(item.trace || []).slice(0, 3).map((trace) => `
       <div class="history-entry">
-        <strong>${prettifyNodeName(entry.type)}</strong>
+        <strong>${prettifyNodeName(trace.type)}</strong>
         <div class="meta">
-          <span class="tag">${traceSummary(entry)}</span>
-          <span class="tag">actor: ${entry.actor}</span>
+          <span class="tag">${traceSummary(trace)}</span>
+          <span class="tag">actor: ${trace.actor}</span>
         </div>
       </div>
     `).join('')}
@@ -346,16 +378,16 @@ function renderVisualState(item, stageIndexOverride = null) {
     <div class="detail-grid">
       <div class="detail-box"><div class="label">Current Status</div><div>${item.status}</div></div>
       <div class="detail-box"><div class="label">Current Owner</div><div>${item.actualOwner}</div></div>
-      <div class="detail-box"><div class="label">Current Step</div><div>${currentStage}</div></div>
-      <div class="detail-box"><div class="label">Next Step</div><div>${nextStage}</div></div>
+      <div class="detail-box"><div class="label">Current Step</div><div>${entry?.label || currentStage}</div></div>
+      <div class="detail-box"><div class="label">Next Step</div><div>${nextStep}</div></div>
     </div>
-    <div class="meta"><span class="tag">${currentStageMessage}</span></div>
+    <div class="meta"><span class="tag">${entry?.message || 'No timeline detail available.'}</span></div>
   `;
 
-  renderFlow(item, stageIndex);
-  renderPhaseTimeline(item, stageIndex);
-  renderHumanInvolvement(item);
-  renderExecutionTrace(item, stageIndex);
+  renderFlow(item, cursor);
+  renderPhaseTimeline(item, cursor);
+  renderHumanInvolvement(item, cursor);
+  renderExecutionTrace(item, cursor);
 }
 
 function renderInspector(item) {
@@ -458,34 +490,33 @@ function movePulseToNode(node) {
   pulseDot.style.opacity = 1;
 }
 
-async function animateStage(item, stageIndex) {
+async function animateCursor(item, cursor) {
   clearActive();
-  const { stages } = workflowModel(item);
-  const stage = stages[stageIndex];
-  if (!stage?.nodeId) {
-    await new Promise((resolve) => setTimeout(resolve, 180));
+  const entry = getCurrentTimelineEntry(item, cursor);
+  if (!entry?.nodeId) {
+    await new Promise((resolve) => setTimeout(resolve, 140));
     return;
   }
-  const node = document.querySelector(`[data-node="${stage.nodeId}"]`);
+  const node = document.querySelector(`[data-node="${entry.nodeId}"]`);
   if (!node) {
-    await new Promise((resolve) => setTimeout(resolve, 180));
+    await new Promise((resolve) => setTimeout(resolve, 140));
     return;
   }
   node.classList.add('active');
   node.classList.add('processing');
   movePulseToNode(node);
-  await new Promise((resolve) => setTimeout(resolve, 320));
+  await new Promise((resolve) => setTimeout(resolve, 260));
   node.classList.remove('processing');
 }
 
-async function renderActive(item, stageIndexOverride = null) {
+async function renderActive(item, cursorOverride = null) {
   selectedRequestId = item.id;
-  const stageIndex = stageIndexOverride ?? getStageIndex(item);
-  renderVisualState(item, stageIndex);
+  const cursor = cursorOverride ?? getTimelineCursor(item);
+  renderVisualState(item, cursor);
   renderInspector(item);
   renderApprovals();
   renderAgentStatus();
-  await animateStage(item, stageIndex);
+  await animateCursor(item, cursor);
   const alreadySeen = history.some((entry) => entry.id === item.id);
   if (!alreadySeen) {
     history = [item, ...history].slice(0, 8);
@@ -510,8 +541,8 @@ function runtimeSummaryData() {
 
 function renderRuntimeStrip(data) {
   const selected = cases.find((item) => item.id === selectedRequestId) || cases[0];
-  const stageInfo = selected ? workflowModel(selected) : null;
-  const stageIndex = selected ? getStageIndex(selected) : null;
+  const timeline = selected ? buildTimeline(selected) : [];
+  const cursor = selected ? getTimelineCursor(selected) : null;
   runtimeStrip.innerHTML = `
     <div class="meta">
       <span class="tag">mode: ${currentMode === 'visual' ? 'visual playback' : 'inspection'}</span>
@@ -520,9 +551,9 @@ function renderRuntimeStrip(data) {
       <span class="tag">pending approvals: ${data.summary.awaitingApproval}</span>
       <span class="tag">artifacts: ${data.summary.totalArtifacts}</span>
       ${selected ? `<span class="tag">focus: ${selected.actualClassification} -> ${selected.actualOwner}</span>` : ''}
-      ${selected && stageInfo ? `<span class="tag">stage ${stageIndex + 1}/${stageInfo.stages.length}</span>` : ''}
+      ${selected && timeline.length ? `<span class="tag">timeline ${cursor + 1}/${timeline.length}</span>` : ''}
     </div>
-    <p class="muted" style="margin-top:12px; margin-bottom:0;">Playback now shows workflow movement, human trust checkpoints, concrete execution work, and clearer trace vocabulary.</p>
+    <p class="muted" style="margin-top:12px; margin-bottom:0;">Playback now runs on a reversible request timeline so workflow, human, and execution steps can be stepped forward and backward without skipping.</p>
   `;
 }
 
@@ -554,8 +585,8 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
 
   const selected = cases.find((item) => item.id === selectedRequestId) || cases[0] || null;
   if (selected) {
-    if (!stageIndexByRequest.has(selected.id)) setStageIndex(selected, workflowModel(selected).currentIndex);
-    renderVisualState(selected, getStageIndex(selected));
+    if (!timelineCursorByRequest.has(selected.id)) setTimelineCursor(selected, 0);
+    renderVisualState(selected, getTimelineCursor(selected));
     renderInspector(selected);
     renderApprovals();
     renderAgentStatus();
@@ -564,24 +595,48 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
   highlightSelectedRequest();
 }
 
-async function stepWorkflow() {
+async function stepForward() {
   if (!cases.length || autoAdvanceBusy) return;
   autoAdvanceBusy = true;
   try {
     const item = cases[activeIndex];
-    const model = workflowModel(item);
-    const currentStageIndex = getStageIndex(item);
-    await renderActive(item, currentStageIndex);
+    const timeline = buildTimeline(item);
+    const cursor = getTimelineCursor(item);
+    await renderActive(item, cursor);
 
-    if (currentStageIndex < model.stages.length - 1) {
-      setStageIndex(item, currentStageIndex + 1);
+    if (cursor < timeline.length - 1) {
+      setTimelineCursor(item, cursor + 1);
     } else {
-      setStageIndex(item, 0);
+      setTimelineCursor(item, 0);
       activeIndex = (activeIndex + 1) % cases.length;
       const nextItem = cases[activeIndex];
-      if (nextItem && !stageIndexByRequest.has(nextItem.id)) {
-        setStageIndex(nextItem, 0);
+      if (nextItem && !timelineCursorByRequest.has(nextItem.id)) {
+        setTimelineCursor(nextItem, 0);
       }
+    }
+
+    renderRuntimeStrip({ summary: runtimeSummaryData() });
+  } finally {
+    autoAdvanceBusy = false;
+  }
+}
+
+async function stepBackward() {
+  if (!cases.length || autoAdvanceBusy) return;
+  autoAdvanceBusy = true;
+  try {
+    const item = cases[activeIndex];
+    let cursor = getTimelineCursor(item);
+    if (cursor > 0) {
+      setTimelineCursor(item, cursor - 1);
+      cursor -= 1;
+      await renderActive(item, cursor);
+    } else {
+      activeIndex = (activeIndex - 1 + cases.length) % cases.length;
+      const previousItem = cases[activeIndex];
+      const previousTimeline = buildTimeline(previousItem);
+      setTimelineCursor(previousItem, Math.max(0, previousTimeline.length - 1));
+      await renderActive(previousItem, getTimelineCursor(previousItem));
     }
 
     renderRuntimeStrip({ summary: runtimeSummaryData() });
@@ -594,9 +649,9 @@ function schedulePlayback() {
   if (playbackTimer) clearTimeout(playbackTimer);
   if (playbackPaused || !cases.length) return;
   playbackTimer = setTimeout(async function tick() {
-    await stepWorkflow();
+    await stepForward();
     schedulePlayback();
-  }, 1800);
+  }, 1500);
 }
 
 function pausePlayback() {
@@ -615,7 +670,7 @@ function resumePlayback() {
 async function load({ reset = false } = {}) {
   if (reset) {
     await fetch('/api/runtime/reset-from-tests', { method: 'POST' });
-    stageIndexByRequest = new Map();
+    timelineCursorByRequest = new Map();
   }
 
   const res = await fetch('/api/runtime');
@@ -633,7 +688,7 @@ function connectEventStream() {
   });
   source.addEventListener('runtime.reset', (event) => {
     const data = JSON.parse(event.data);
-    stageIndexByRequest = new Map();
+    timelineCursorByRequest = new Map();
     applyRuntimeData(data);
   });
   source.addEventListener('approval.updated', (event) => {
@@ -655,12 +710,12 @@ document.addEventListener('click', (event) => {
   if (!card) return;
   const item = cases.find((entry) => entry.id === card.dataset.requestId);
   if (item) {
-    if (!stageIndexByRequest.has(item.id)) setStageIndex(item, 0);
+    if (!timelineCursorByRequest.has(item.id)) setTimelineCursor(item, 0);
     if (card.closest('#inspectionModeView')) setMode('inspect');
     pausePlayback();
     selectedRequestId = item.id;
     activeIndex = cases.findIndex((entry) => entry.id === item.id);
-    renderActive(item, getStageIndex(item));
+    renderActive(item, getTimelineCursor(item));
   }
 });
 
@@ -672,11 +727,15 @@ modeInspectBtn.addEventListener('click', () => {
   setMode('inspect');
   renderRuntimeStrip({ summary: runtimeSummaryData() });
 });
+backBtn.addEventListener('click', async () => {
+  pausePlayback();
+  await stepBackward();
+});
 pauseBtn.addEventListener('click', pausePlayback);
 resumeBtn.addEventListener('click', resumePlayback);
 stepBtn.addEventListener('click', async () => {
   pausePlayback();
-  await stepWorkflow();
+  await stepForward();
 });
 refreshBtn.addEventListener('click', () => load({ reset: true }));
 connectEventStream();
