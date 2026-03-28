@@ -64,60 +64,11 @@ function prettifyNodeName(value) {
 }
 
 function deriveHumanEvents(item) {
-  const events = [];
-  if ((item.approvals || []).length) {
-    for (const approval of item.approvals) {
-      events.push({
-        title: approval.type || 'Approval Review',
-        state: approval.status === 'approved' ? 'approved' : approval.status === 'rejected' ? 'override' : 'pending',
-        detail: `${approval.requiredApproverRole} ${approval.status || 'pending'} this request.`
-      });
-    }
-  }
-  if (item.status === 'blocked') {
-    events.push({
-      title: 'Human Intervention',
-      state: 'override',
-      detail: 'A human must step in to unblock or reroute this request.'
-    });
-  }
-  if (!events.length) {
-    events.push({
-      title: 'No active human gate',
-      state: 'approved',
-      detail: 'This request is currently progressing without a human checkpoint.'
-    });
-  }
-  return events;
+  return item.humanEvents || [];
 }
 
 function deriveExecutionSteps(item) {
-  const classification = item.actualClassification || 'request';
-  if (classification === 'access-request') {
-    return [
-      { title: 'Read account state', detail: 'Inspect the user and entitlement state in the identity backend.' },
-      { title: 'Compare requested access', detail: 'Validate requested access against current policy and role rules.' },
-      { title: 'Apply change in IdP', detail: 'Update identity settings or group membership in the target system.' },
-      { title: 'Verify resulting state', detail: 'Confirm the new access state matches the intended outcome.' },
-      { title: 'Write change artifact', detail: 'Record what changed and why for later review.' }
-    ];
-  }
-  if (classification === 'support-issue') {
-    return [
-      { title: 'Read service state', detail: 'Inspect VPN or network service signals tied to the request.' },
-      { title: 'Diagnose likely cause', detail: 'Correlate request symptoms against known issue patterns.' },
-      { title: 'Apply configuration fix', detail: 'Tune the relevant backend or service setting.' },
-      { title: 'Validate service recovery', detail: 'Check whether the user-impacting issue is resolved.' },
-      { title: 'Write resolution artifact', detail: 'Capture the fix and evidence for support records.' }
-    ];
-  }
-  return [
-    { title: 'Read system context', detail: 'Inspect the relevant backend state before taking action.' },
-    { title: 'Prepare action plan', detail: 'Translate the request into a bounded operational change.' },
-    { title: 'Apply change', detail: 'Perform the backend action in the target system.' },
-    { title: 'Verify outcome', detail: 'Check that the change produced the intended result.' },
-    { title: 'Write artifact', detail: 'Store evidence and a human-readable summary.' }
-  ];
+  return item.executionTrace || [];
 }
 
 function workflowModel(item) {
@@ -149,8 +100,8 @@ function workflowModel(item) {
     specialistNode && specialistNode !== ownerNode
       ? { label: specialistNode, type: 'specialist', nodeId: specialistNode.toLowerCase().replaceAll(' ', '-'), message: `${specialistNode} handles specialist workflow work.` }
       : null,
-    approvalNode ? { label: approvalNode, type: 'approval', nodeId: 'security-director', message: 'A human approval gate decides whether the workflow can continue.' } : null,
-    { label: systemNode, type: 'system', nodeId: classification === 'support-issue' ? 'vpn-system' : classification === 'access-request' ? 'idp-system' : classification === 'incident' ? 'internal-app' : null, message: `${systemNode} is the main destination system for this workflow.` },
+    approvalNode ? { label: 'Approval Gate', type: 'approval', nodeId: 'security-director', message: 'A human approval gate decides whether the workflow can continue.' } : null,
+    { label: systemNode, type: 'system', nodeId: classification === 'support-issue' ? 'vpn-system' : classification === 'access-request' ? 'idp-system' : classification === 'incident' ? 'internal-app' : classification === 'infrastructure-change' ? 'firewall-system' : null, message: `${systemNode} is the main destination system for this workflow.` },
     { label: artifactNode, type: 'artifact', nodeId: null, message: 'The workflow produces an artifact or output record.' }
   ].filter(Boolean);
 
@@ -299,7 +250,7 @@ function renderHumanInvolvement(item) {
       ${humanEvents.map((event) => `
         <div class="human-entry ${event.state}">
           <div class="human-entry-title">${event.title}</div>
-          <div class="human-entry-meta">${event.detail}</div>
+          <div class="human-entry-meta">${event.summary || event.detail}</div>
         </div>
       `).join('')}
     </div>
@@ -327,7 +278,7 @@ function renderExecutionTrace(item, stageIndex) {
             : `${step.detail} Waiting.`;
         return `
           <div class="execution-entry ${state}">
-            <div class="execution-entry-title">${step.title}</div>
+            <div class="execution-entry-title">${prettifyNodeName(step.action || step.title)}</div>
             <div class="execution-entry-meta">${detail}</div>
           </div>
         `;

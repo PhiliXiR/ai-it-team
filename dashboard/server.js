@@ -60,25 +60,116 @@ async function api(pathname, options = {}) {
   return res.json();
 }
 
+async function createRequestFromCase(testCase) {
+  const payload = {
+    input: testCase.input,
+    source: 'test-corpus',
+    requester: 'demo-user',
+  };
+
+  if (testCase.expectedClassification === 'access-request') {
+    payload.targetSystem = 'identity-platform';
+    payload.requestedAccess = testCase.input.toLowerCase().includes('admin') ? 'temporary-admin' : 'baseline-access';
+    payload.justification = 'Scenario data for dashboard visualization.';
+    payload.managerApprovalProvided = !testCase.input.toLowerCase().includes('temporary admin');
+  }
+
+  return api('/api/requests', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+async function enrichScenario(request) {
+  const input = request.input.toLowerCase();
+
+  if (request.classification === 'access-request') {
+    await api(`/api/requests/${request.id}/access-review`, { method: 'POST' });
+    const approvals = await api(`/api/requests/${request.id}/approvals`);
+    if (input.includes('baseline access')) {
+      const pending = approvals.find((item) => item.status === 'pending');
+      if (pending) {
+        await api(`/api/approvals/${pending.id}/approve`, { method: 'POST', body: JSON.stringify({ actor: 'manager-demo' }) });
+      }
+    }
+  }
+}
+
 async function seedFromTestsIfNeeded() {
   if (isSeeded()) return;
 
   const cases = JSON.parse(fs.readFileSync(path.join(root, 'tests', 'request-cases.json'), 'utf8'));
   for (const testCase of cases) {
-    const request = await api('/api/requests', {
-      method: 'POST',
-      body: JSON.stringify({ input: testCase.input, source: 'test-corpus' })
-    });
+    const request = await createRequestFromCase(testCase);
     await api(`/api/requests/${request.id}/route`, { method: 'POST' });
-  }
-
-  const requests = await api('/api/requests');
-  const accessRequest = requests.find((item) => item.classification === 'access-request');
-  if (accessRequest) {
-    await api(`/api/requests/${accessRequest.id}/access-review`, { method: 'POST' });
+    const routed = await api(`/api/requests/${request.id}`);
+    await enrichScenario(routed);
   }
 
   markSeeded();
+}
+
+function deriveHumanEvents(item) {
+  const approvals = item.approvals || [];
+  const events = approvals.map((approval) => ({
+    kind: 'approval',
+    title: approval.type || 'Approval Review',
+    state: approval.status || 'pending',
+    role: approval.requiredApproverRole,
+    summary: `${approval.requiredApproverRole} ${approval.status || 'pending'} this request.`
+  }));
+
+  if (item.status === 'blocked') {
+    events.push({
+      kind: 'intervention',
+      title: 'Human Intervention Required',
+      state: 'override',
+      role: 'human-operator',
+      summary: 'A person must intervene to unblock or redirect this workflow.'
+    });
+  }
+
+  return events;
+}
+
+function deriveExecutionTrace(item) {
+  if (item.actualClassification === 'access-request') {
+    return [
+      { action: 'read-account-state', system: 'identity-platform', detail: 'Inspect account state and current entitlements.' },
+      { action: 'compare-requested-access', system: 'identity-platform', detail: 'Compare requested access against policy and role constraints.' },
+      { action: 'apply-access-change', system: 'identity-platform', detail: 'Update role or group membership in the backend.' },
+      { action: 'verify-access-state', system: 'identity-platform', detail: 'Confirm the requested access is now present.' },
+      { action: 'write-audit-artifact', system: 'case-record', detail: 'Store a reviewable access-change note.' }
+    ];
+  }
+
+  if (item.actualClassification === 'support-issue') {
+    return [
+      { action: 'read-service-state', system: 'vpn-service', detail: 'Inspect VPN and authentication service signals.' },
+      { action: 'diagnose-failure-pattern', system: 'support-analysis', detail: 'Correlate symptoms with a likely root cause.' },
+      { action: 'apply-configuration-fix', system: 'vpn-service', detail: 'Tune the relevant backend or service setting.' },
+      { action: 'validate-user-recovery', system: 'vpn-service', detail: 'Check that the user can connect again.' },
+      { action: 'write-resolution-artifact', system: 'case-record', detail: 'Record the fix and evidence.' }
+    ];
+  }
+
+  if (item.actualClassification === 'incident') {
+    return [
+      { action: 'collect-service-signals', system: 'internal-app', detail: 'Gather runtime signals from the affected application.' },
+      { action: 'correlate-impact', system: 'incident-analysis', detail: 'Estimate scope and likely blast radius.' },
+      { action: 'apply-remediation', system: 'internal-app', detail: 'Apply the chosen mitigation or rollback.' },
+      { action: 'verify-service-health', system: 'internal-app', detail: 'Confirm the application is healthy again.' },
+      { action: 'write-incident-summary', system: 'case-record', detail: 'Capture the remediation and timeline.' }
+    ];
+  }
+
+  return [
+    { action: 'inspect-change-target', system: 'target-system', detail: 'Read current backend state.' },
+    { action: 'prepare-change-plan', system: 'change-analysis', detail: 'Translate the request into a bounded change.' },
+    { action: 'apply-change', system: 'target-system', detail: 'Perform the infrastructure update.' },
+    { action: 'verify-change', system: 'target-system', detail: 'Confirm the change landed correctly.' },
+    { action: 'write-change-artifact', system: 'case-record', detail: 'Store evidence and summary.' }
+  ];
 }
 
 async function buildRuntimePayload() {
@@ -95,7 +186,7 @@ async function buildRuntimePayload() {
       api(`/api/requests/${item.id}/artifacts`),
       api(`/api/requests/${item.id}/approvals`)
     ]);
-    return {
+    const enrichedItem = {
       ...item,
       actualClassification: item.classification,
       actualOwner: item.owner,
@@ -104,6 +195,11 @@ async function buildRuntimePayload() {
       traceCount: trace.length,
       approvals: requestApprovals,
       trace
+    };
+    return {
+      ...enrichedItem,
+      humanEvents: deriveHumanEvents(enrichedItem),
+      executionTrace: deriveExecutionTrace(enrichedItem)
     };
   }));
 
