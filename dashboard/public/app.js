@@ -147,8 +147,11 @@ async function renderActive(item, title = 'Active Request') {
   await animateRoute(item.route || []);
   queue = [];
   renderQueue();
-  history = [item, ...history.filter((entry) => entry.id !== item.id)].slice(0, 8);
-  renderHistory();
+  const alreadySeen = history.some((entry) => entry.id === item.id);
+  if (!alreadySeen) {
+    history = [item, ...history].slice(0, 8);
+    renderHistory();
+  }
 }
 
 function applyRuntimeData(data, { preserveHistory = false } = {}) {
