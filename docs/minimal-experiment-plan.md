@@ -20,7 +20,9 @@ The project is currently most useful when it focuses on:
 - ownership and handoffs
 - approval-aware workflows
 - traceability and inspection
+- human checkpoints and trust boundaries
 - the difference between model behavior and system control
+- how actual execution work should be represented
 
 ## Questions worth answering next
 
@@ -30,9 +32,13 @@ What request schema and routing format make workflow decisions easier to underst
 
 ### 2. Minimal workflow state
 
-What is the minimum set of request, trace, artifact, and approval state needed for one workflow to feel real?
+What is the minimum set of request, trace, artifact, approval, human, and execution state needed for one workflow to feel real?
 
-### 3. Intake quality
+### 3. Playback truthfulness
+
+What does the dashboard need to show so workflow, human involvement, and execution work can be stepped through honestly without skipping or hand-waving?
+
+### 4. Intake quality
 
 What should a user-facing intake layer ask before routing becomes meaningfully better?
 
@@ -56,11 +62,24 @@ Pick one additional narrow workflow such as:
 
 - VPN support
 - incident triage
+- controlled infrastructure change
 
 Goal:
 learn whether the runtime objects and approval patterns generalize beyond access review.
 
-### Experiment 3 — Intake question design
+### Experiment 3 — Playback and trace vocabulary pass
+
+Take a handful of seeded scenarios and tighten:
+
+- trace event vocabulary
+- human involvement markers
+- execution step language
+- forward/back playback behavior
+
+Goal:
+learn what makes the runtime feel most inspectable and trustworthy.
+
+### Experiment 4 — Intake question design
 
 Take a handful of vague requests and define:
 

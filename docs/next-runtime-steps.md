@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document captures the next practical build steps after the current dashboard, API spine, approval controls, and live update pass.
+This document captures the next practical build steps after the current dashboard, API spine, approval controls, live update pass, and timeline-playback redesign.
 
 ## What now exists
 
@@ -10,32 +10,51 @@ The project now has:
 
 - documented workflows and role structure
 - a prototype router and test corpus
-- a dashboard with live topology playback
+- a dashboard with visual and inspection modes
+- reversible request playback across workflow, human, and execution steps
 - a runtime spine with stored requests, traces, artifacts, and approvals
 - a controlled access-request slice
 - approval controls visible in the UI
 - SSE-based live dashboard updates
+- seeded scenarios that better highlight trust boundaries and execution work
 
 ## Best next engineering moves
 
-### 1. Live request creation
+### 1. Friendly startup dependency handling
+
+The dashboard still expects the Python backend to be up first.
+
+The next move should be a friendlier dependency check so the dashboard does not hard-fail when the backend is unavailable.
+
+### 2. Live request creation
 
 Allow new requests to enter the runtime while the dashboard is running.
 
 This would let the live stream show real request creation instead of only seeded playback state.
 
-### 2. Role activity and worker state
+### 3. Richer request schema and trace generation
 
-Make role activity more explicit.
+Make request creation and runtime traces richer by capturing things like:
 
-Examples:
+- missing context
+- justification
+- requester clarification loops
+- execution intent
+- verification result
+- human decision points
 
-- current owner is active
-- approval owner is waiting
-- specialist has resumed work after approval
-- request is blocked or paused
+### 4. Better separation of simulated versus real runtime state
 
-### 3. Richer workflow slices
+The project is still using seeded and partly synthetic runtime data for explainability.
+
+The next move should make it clearer which events are:
+
+- runtime-native
+- seeded
+- derived
+- simulated
+
+### 5. Additional workflow slices
 
 Expand beyond access-request control flow into:
 
@@ -43,20 +62,23 @@ Expand beyond access-request control flow into:
 - incident triage workflow
 - infrastructure change review workflow
 
-### 4. Approve/reject trace enrichment
+The dashboard now has enough structure that these slices can teach useful things.
 
-Make approval traces richer by capturing:
+### 6. Bound execution model
 
-- approver identity or role
-- reason for rejection
-- time-to-approval
-- resumed owner and next step
+The execution layer is still representational.
 
-### 5. LLM-backed role worker outputs
+The next step should define a more explicit model for:
 
-Replace or augment placeholder role-review logic with bounded LLM-based structured outputs.
+- execution started
+- execution completed
+- verification passed / failed
+- human-executed risky step
+- artifact written
 
-### 6. Live intake mode
+This will help the line between control flow and actual work become more precise.
+
+### 7. Live intake mode
 
 Introduce a user-facing intake path that can create requests in real time and feed the dashboard/event stream.
 
@@ -69,6 +91,8 @@ That means:
 - more visible state transitions
 - more realistic request creation
 - clearer role activity
-- richer controlled workflows
+- clearer trust boundaries
+- clearer execution work
+- honest labeling of what is simulated versus implemented
 
 Those steps are more valuable right now than additional broad design docs.

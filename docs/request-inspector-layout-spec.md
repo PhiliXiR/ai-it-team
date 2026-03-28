@@ -16,7 +16,8 @@ The Request Inspector should prioritize:
 
 1. human understanding first
 2. workflow clarity second
-3. raw object visibility third
+3. trust and execution clarity third
+4. raw object visibility fourth
 
 Raw system data should still be available, but it should not visually compete with the most important workflow information by default.
 
@@ -34,6 +35,7 @@ The Request Inspector should clearly show:
 - request classification
 - whether approval is pending
 - whether the request is blocked or waiting on something
+- whether the current moment is workflow, human, or execution work
 
 This should be the visually dominant section.
 
@@ -55,9 +57,21 @@ The goal is to answer:
 - why is the request in this state?
 - what happens next?
 
-### Layer 3 — Raw system data
+### Layer 3 — Trust and execution understanding
 
-Raw system data is valuable for auditability and experimentation, but should be subordinate to Layers 1 and 2.
+After the workflow is clear, the human should be able to understand:
+
+- where human approval or clarification is needed
+- whether a human took over
+- whether a human executed a risky step
+- what backend or system work was performed
+- whether the result was verified
+
+This is the layer that helps the system feel controlled instead of magical.
+
+### Layer 4 — Raw system data
+
+Raw system data is valuable for auditability and experimentation, but should be subordinate to the earlier layers.
 
 This layer should include:
 
@@ -93,6 +107,7 @@ Required fields:
 - pending approval indicator if applicable
 - blocker if applicable
 - next expected step
+- current step meaning in plain language
 
 This should explain the operational meaning of the request’s current state in plain language.
 
@@ -108,18 +123,26 @@ Timeline emphasis should go to events like:
 - approval created
 - approval approved
 - approval rejected
+- requester clarification requested
+- requester clarification received
+- human takeover started
+- human decision recorded
+- execution change applied
+- verification passed
 - request resumed
 - request blocked
 - artifact created
 
 This should feel like a lifecycle record, not a raw log dump.
 
-### Section D — Approvals and Artifacts
+### Section D — Human Involvement and Execution
 
 The Request Inspector should show:
 
 - approval cards or rows
-- artifact cards or rows
+- clarification / takeover / override markers
+- execution steps or execution trace rows
+- system-touch summaries
 
 These should be compact and visually grouped.
 
@@ -144,12 +167,14 @@ Instead it should emphasize:
 - topology
 - current focus
 - movement
-- a small amount of recent state
+- phase-by-phase playback
+- human checkpoints
+- execution work at a glance
 
 This preserves a useful distinction:
 
-- Visual Mode = show the system
-- Inspection Mode = understand the system
+- Visual Mode = show the system moving
+- Inspection Mode = understand the system deeply
 
 ## What to reduce
 
@@ -160,11 +185,12 @@ To improve presentability, the Request Inspector should reduce:
 - always-visible raw JSON
 - repeated information shown in multiple places
 - labels that assume the user already understands the model
+- descriptions of the playback engine itself instead of the operational meaning of the step
 
 ## Guiding question
 
 Every Request Inspector UI decision should be checked against this question:
 
-**Does this help a human understand what is happening, or is it just exposing data because the data exists?**
+**Does this help a human understand what is happening, who matters, and what work occurred, or is it just exposing data because the data exists?**
 
 That distinction is the key to making the inspector feel presentable rather than cluttered.
