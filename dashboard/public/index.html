@@ -51,31 +51,34 @@
         <section class="card" id="workflowActivityPanel"></section>
       </section>
 
-      <section class="topology-wrap" id="topologyWrap">
-        <div class="pulse-dot" id="pulseDot"></div>
-        <div class="column">
-          <h2>Systems</h2>
-          <div class="node" data-node="vpn-system">VPN</div>
-          <div class="node" data-node="idp-system">Identity Provider</div>
-          <div class="node" data-node="internal-app">Internal App</div>
-          <div class="node" data-node="firewall-system">Firewall</div>
-        </div>
-        <div class="column middle">
-          <h2>Agents</h2>
-          <div class="node" data-node="helpdesk-lead">Helpdesk Lead</div>
-          <div class="node" data-node="network-lead">Network Lead</div>
-          <div class="node" data-node="vpn-specialist">VPN Specialist</div>
-          <div class="node" data-node="iam-lead">IAM Lead</div>
-          <div class="node" data-node="iam-specialist">IAM Specialist</div>
-          <div class="node" data-node="incident-lead">Incident Lead</div>
-          <div class="node" data-node="incident-triage-specialist">Incident Triage</div>
-          <div class="node" data-node="documentation-lead">Documentation Lead</div>
-          <div class="node" data-node="security-director">Security Director</div>
-        </div>
-        <div class="column">
-          <h2>Request Queue</h2>
-          <div id="queueList"></div>
-        </div>
+      <section class="grid-2">
+        <section class="card" id="phaseTimelinePanel"></section>
+        <section class="topology-wrap" id="topologyWrap">
+          <div class="pulse-dot" id="pulseDot"></div>
+          <div class="column">
+            <h2>Systems</h2>
+            <div class="node" data-node="vpn-system">VPN</div>
+            <div class="node" data-node="idp-system">Identity Provider</div>
+            <div class="node" data-node="internal-app">Internal App</div>
+            <div class="node" data-node="firewall-system">Firewall</div>
+          </div>
+          <div class="column middle">
+            <h2>Agents</h2>
+            <div class="node" data-node="helpdesk-lead">Helpdesk Lead</div>
+            <div class="node" data-node="network-lead">Network Lead</div>
+            <div class="node" data-node="vpn-specialist">VPN Specialist</div>
+            <div class="node" data-node="iam-lead">IAM Lead</div>
+            <div class="node" data-node="iam-specialist">IAM Specialist</div>
+            <div class="node" data-node="incident-lead">Incident Lead</div>
+            <div class="node" data-node="incident-triage-specialist">Incident Triage</div>
+            <div class="node" data-node="documentation-lead">Documentation Lead</div>
+            <div class="node" data-node="security-director">Security Director</div>
+          </div>
+          <div class="column">
+            <h2>Request Queue</h2>
+            <div id="queueList"></div>
+          </div>
+        </section>
       </section>
 
       <section class="selector-panel card">

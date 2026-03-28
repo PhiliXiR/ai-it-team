@@ -14,6 +14,7 @@ const currentCase = document.getElementById('currentCase');
 const flowPipeline = document.getElementById('flowPipeline');
 const ticketStatePanel = document.getElementById('ticketStatePanel');
 const workflowActivityPanel = document.getElementById('workflowActivityPanel');
+const phaseTimelinePanel = document.getElementById('phaseTimelinePanel');
 const historyList = document.getElementById('historyList');
 const queueList = document.getElementById('queueList');
 const approvalsList = document.getElementById('approvalsList');
@@ -83,15 +84,15 @@ function workflowModel(item) {
   const artifactNode = item.artifact?.type ? prettifyNodeName(item.artifact.type) : 'Artifact';
 
   const stages = [
-    { label: 'Request Queue', type: 'queue', nodeId: null },
-    { label: 'Helpdesk Lead', type: 'agent', nodeId: 'helpdesk-lead' },
-    { label: ownerNode, type: 'owner', nodeId: item.actualOwner || null },
+    { label: 'Request Queue', type: 'queue', nodeId: null, message: 'Request enters the shared intake queue.' },
+    { label: 'Helpdesk Lead', type: 'agent', nodeId: 'helpdesk-lead', message: 'Helpdesk classifies and frames the request.' },
+    { label: ownerNode, type: 'owner', nodeId: item.actualOwner || null, message: `${ownerNode} takes ownership of the request.` },
     specialistNode && specialistNode !== ownerNode
-      ? { label: specialistNode, type: 'specialist', nodeId: specialistNode.toLowerCase().replaceAll(' ', '-') }
+      ? { label: specialistNode, type: 'specialist', nodeId: specialistNode.toLowerCase().replaceAll(' ', '-'), message: `${specialistNode} handles specialist workflow work.` }
       : null,
-    approvalNode ? { label: approvalNode, type: 'approval', nodeId: 'security-director' } : null,
-    { label: systemNode, type: 'system', nodeId: classification === 'support-issue' ? 'vpn-system' : classification === 'access-request' ? 'idp-system' : classification === 'incident' ? 'internal-app' : null },
-    { label: artifactNode, type: 'artifact', nodeId: null }
+    approvalNode ? { label: approvalNode, type: 'approval', nodeId: 'security-director', message: 'A human approval gate decides whether the workflow can continue.' } : null,
+    { label: systemNode, type: 'system', nodeId: classification === 'support-issue' ? 'vpn-system' : classification === 'access-request' ? 'idp-system' : classification === 'incident' ? 'internal-app' : null, message: `${systemNode} is the main destination system for this workflow.` },
+    { label: artifactNode, type: 'artifact', nodeId: null, message: 'The workflow produces an artifact or output record.' }
   ].filter(Boolean);
 
   const defaultCurrent = stages.findIndex((stage) => stage.type === 'owner');
@@ -118,12 +119,29 @@ function setStageIndex(item, index) {
   stageIndexByRequest.set(item.id, Math.max(0, Math.min(index, model.stages.length - 1)));
 }
 
+function stageState(index, activeIndex) {
+  if (index < activeIndex) return 'completed';
+  if (index === activeIndex) return 'current';
+  return 'upcoming';
+}
+
+function stageMetaText(state, step, isFinal) {
+  if (state === 'completed') return 'completed';
+  if (state === 'current') return isFinal ? 'active final phase' : 'active now';
+  if (step.type === 'approval') return 'waiting if required';
+  return 'waiting';
+}
+
 function renderFlow(item, stageIndexOverride = null) {
   const { stages, currentIndex } = workflowModel(item);
   const stageIndex = stageIndexOverride ?? currentIndex;
   flowPipeline.innerHTML = stages.map((step, index) => {
-    const state = index < stageIndex ? 'completed' : index === stageIndex ? 'current' : 'upcoming';
-    return `${index > 0 ? '<span class="flow-arrow">→</span>' : ''}<div class="flow-step ${state}">${step.label}</div>`;
+    const state = stageState(index, stageIndex);
+    return `${index > 0 ? '<span class="flow-arrow">→</span>' : ''}
+      <div class="flow-step ${state}">
+        <div class="flow-step-label">${step.label}</div>
+        <div class="flow-step-meta">${stageMetaText(state, step, index === stages.length - 1)}</div>
+      </div>`;
   }).join('');
 }
 
@@ -191,11 +209,35 @@ function renderAgentStatus() {
   `;
 }
 
+function renderPhaseTimeline(item, stageIndex) {
+  const { stages } = workflowModel(item);
+  phaseTimelinePanel.innerHTML = `
+    <h2>Phase Timeline</h2>
+    <div class="phase-timeline">
+      ${stages.map((step, index) => {
+        const state = stageState(index, stageIndex);
+        const detail = state === 'completed'
+          ? 'Phase completed in playback.'
+          : state === 'current'
+            ? step.message
+            : 'Waiting for this phase to begin.';
+        return `
+          <div class="phase-entry ${state}">
+            <div class="phase-entry-title">${step.label}</div>
+            <div class="phase-entry-meta">${detail}</div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
 function renderVisualState(item, stageIndexOverride = null) {
   if (!item) {
     currentCase.innerHTML = 'No active request selected.';
     ticketStatePanel.innerHTML = 'No current ticket state.';
     workflowActivityPanel.innerHTML = 'No workflow activity.';
+    phaseTimelinePanel.innerHTML = 'No phase timeline.';
     flowPipeline.innerHTML = '';
     return;
   }
@@ -203,6 +245,7 @@ function renderVisualState(item, stageIndexOverride = null) {
   const model = workflowModel(item);
   const stageIndex = stageIndexOverride ?? getStageIndex(item);
   const currentStage = model.stages[stageIndex]?.label || 'Unknown Stage';
+  const currentStageMessage = model.stages[stageIndex]?.message || 'No phase detail available.';
   const nextStage = model.stages[stageIndex + 1]?.label || 'Workflow complete';
 
   currentCase.innerHTML = `
@@ -224,27 +267,27 @@ function renderVisualState(item, stageIndexOverride = null) {
       <div class="detail-box"><div class="label">Current Step</div><div>${currentStage}</div></div>
       <div class="detail-box"><div class="label">Next Step</div><div>${nextStage}</div></div>
     </div>
+    <div class="meta"><span class="tag">${currentStageMessage}</span></div>
   `;
 
   workflowActivityPanel.innerHTML = `
     <h2>Workflow Activity</h2>
     <div class="history-entry">
-      <strong>Active Phase</strong>
+      <strong>Entered</strong>
       <div class="meta"><span class="tag">${currentStage}</span></div>
+    </div>
+    <div class="history-entry">
+      <strong>Current Phase Message</strong>
+      <div class="meta"><span class="tag">${currentStageMessage}</span></div>
     </div>
     <div class="history-entry">
       <strong>Up Next</strong>
       <div class="meta"><span class="tag">${nextStage}</span></div>
     </div>
-    ${(item.trace || []).slice(-3).map((entry) => `
-      <div class="history-entry">
-        <strong>${entry.type}</strong>
-        <div class="meta"><span class="tag">actor: ${entry.actor}</span></div>
-      </div>
-    `).join('')}
   `;
 
   renderFlow(item, stageIndex);
+  renderPhaseTimeline(item, stageIndex);
 }
 
 function renderInspector(item) {
