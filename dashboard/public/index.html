@@ -11,13 +11,41 @@
     <header class="hero">
       <div>
         <p class="eyebrow">ai-it-team</p>
-        <h1>Routing Test Dashboard</h1>
-        <p class="sub">Live view of current request routing behavior.</p>
+        <h1>Topology Dashboard</h1>
+        <p class="sub">Requests -> agents -> systems, visualized live from the current test corpus.</p>
       </div>
       <button id="refreshBtn">Refresh</button>
     </header>
 
     <section class="summary" id="summary"></section>
+
+    <section class="topology-wrap">
+      <div class="column">
+        <h2>Systems</h2>
+        <div class="node" data-node="vpn-system">VPN</div>
+        <div class="node" data-node="idp-system">Identity Provider</div>
+        <div class="node" data-node="internal-app">Internal App</div>
+        <div class="node" data-node="firewall-system">Firewall</div>
+      </div>
+      <div class="column middle">
+        <h2>Agents</h2>
+        <div class="node" data-node="helpdesk-lead">Helpdesk Lead</div>
+        <div class="node" data-node="network-lead">Network Lead</div>
+        <div class="node" data-node="vpn-specialist">VPN Specialist</div>
+        <div class="node" data-node="iam-lead">IAM Lead</div>
+        <div class="node" data-node="iam-specialist">IAM Specialist</div>
+        <div class="node" data-node="incident-lead">Incident Lead</div>
+        <div class="node" data-node="incident-triage-specialist">Incident Triage</div>
+        <div class="node" data-node="documentation-lead">Documentation Lead</div>
+        <div class="node" data-node="security-director">Security Director</div>
+      </div>
+      <div class="column">
+        <h2>Requests</h2>
+        <div class="node" data-node="request-queue">Request Queue</div>
+      </div>
+    </section>
+
+    <section class="current-case card" id="currentCase"></section>
     <section class="results" id="results"></section>
   </main>
 

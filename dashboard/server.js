@@ -12,6 +12,19 @@ const PORT = process.env.PORT || 4411;
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+function buildRoute(result) {
+  const base = ['request-queue', 'helpdesk-lead'];
+  if (result.owner && result.owner !== 'helpdesk-lead') base.push(result.owner);
+  for (const step of result.escalation || []) base.push(step);
+
+  if (result.classification === 'support-issue' && result.owner === 'network-lead') base.push('vpn-system');
+  if (result.classification === 'access-request') base.push('idp-system');
+  if (result.classification === 'incident') base.push('internal-app');
+  if (result.classification === 'infrastructure-change') base.push('firewall-system');
+
+  return [...new Set(base)];
+}
+
 app.get('/api/tests', (_req, res) => {
   const cases = JSON.parse(fs.readFileSync(path.join(root, 'tests', 'request-cases.json'), 'utf8'));
   const results = cases.map((testCase) => {
@@ -29,6 +42,7 @@ app.get('/api/tests', (_req, res) => {
       actualClassification: parsed.classification,
       actualOwner: parsed.owner,
       escalation: parsed.escalation,
+      route: buildRoute(parsed),
       pass
     };
   });
