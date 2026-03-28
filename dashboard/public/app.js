@@ -15,6 +15,8 @@ const flowPipeline = document.getElementById('flowPipeline');
 const ticketStatePanel = document.getElementById('ticketStatePanel');
 const workflowActivityPanel = document.getElementById('workflowActivityPanel');
 const phaseTimelinePanel = document.getElementById('phaseTimelinePanel');
+const humanInvolvementPanel = document.getElementById('humanInvolvementPanel');
+const executionTracePanel = document.getElementById('executionTracePanel');
 const historyList = document.getElementById('historyList');
 const queueList = document.getElementById('queueList');
 const approvalsList = document.getElementById('approvalsList');
@@ -59,6 +61,63 @@ function clearActive() {
 
 function prettifyNodeName(value) {
   return value.replaceAll('-', ' ');
+}
+
+function deriveHumanEvents(item) {
+  const events = [];
+  if ((item.approvals || []).length) {
+    for (const approval of item.approvals) {
+      events.push({
+        title: approval.type || 'Approval Review',
+        state: approval.status === 'approved' ? 'approved' : approval.status === 'rejected' ? 'override' : 'pending',
+        detail: `${approval.requiredApproverRole} ${approval.status || 'pending'} this request.`
+      });
+    }
+  }
+  if (item.status === 'blocked') {
+    events.push({
+      title: 'Human Intervention',
+      state: 'override',
+      detail: 'A human must step in to unblock or reroute this request.'
+    });
+  }
+  if (!events.length) {
+    events.push({
+      title: 'No active human gate',
+      state: 'approved',
+      detail: 'This request is currently progressing without a human checkpoint.'
+    });
+  }
+  return events;
+}
+
+function deriveExecutionSteps(item) {
+  const classification = item.actualClassification || 'request';
+  if (classification === 'access-request') {
+    return [
+      { title: 'Read account state', detail: 'Inspect the user and entitlement state in the identity backend.' },
+      { title: 'Compare requested access', detail: 'Validate requested access against current policy and role rules.' },
+      { title: 'Apply change in IdP', detail: 'Update identity settings or group membership in the target system.' },
+      { title: 'Verify resulting state', detail: 'Confirm the new access state matches the intended outcome.' },
+      { title: 'Write change artifact', detail: 'Record what changed and why for later review.' }
+    ];
+  }
+  if (classification === 'support-issue') {
+    return [
+      { title: 'Read service state', detail: 'Inspect VPN or network service signals tied to the request.' },
+      { title: 'Diagnose likely cause', detail: 'Correlate request symptoms against known issue patterns.' },
+      { title: 'Apply configuration fix', detail: 'Tune the relevant backend or service setting.' },
+      { title: 'Validate service recovery', detail: 'Check whether the user-impacting issue is resolved.' },
+      { title: 'Write resolution artifact', detail: 'Capture the fix and evidence for support records.' }
+    ];
+  }
+  return [
+    { title: 'Read system context', detail: 'Inspect the relevant backend state before taking action.' },
+    { title: 'Prepare action plan', detail: 'Translate the request into a bounded operational change.' },
+    { title: 'Apply change', detail: 'Perform the backend action in the target system.' },
+    { title: 'Verify outcome', detail: 'Check that the change produced the intended result.' },
+    { title: 'Write artifact', detail: 'Store evidence and a human-readable summary.' }
+  ];
 }
 
 function workflowModel(item) {
@@ -232,12 +291,59 @@ function renderPhaseTimeline(item, stageIndex) {
   `;
 }
 
+function renderHumanInvolvement(item) {
+  const humanEvents = deriveHumanEvents(item);
+  humanInvolvementPanel.innerHTML = `
+    <h2>Human Involvement</h2>
+    <div class="human-list">
+      ${humanEvents.map((event) => `
+        <div class="human-entry ${event.state}">
+          <div class="human-entry-title">${event.title}</div>
+          <div class="human-entry-meta">${event.detail}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderExecutionTrace(item, stageIndex) {
+  const executionSteps = deriveExecutionSteps(item);
+  const systemStageIndex = workflowModel(item).stages.findIndex((stage) => stage.type === 'system');
+  const executionActiveIndex = systemStageIndex !== -1 && stageIndex >= systemStageIndex
+    ? Math.min(stageIndex - systemStageIndex, executionSteps.length - 1)
+    : -1;
+
+  executionTracePanel.innerHTML = `
+    <h2>Execution Trace</h2>
+    <div class="execution-list">
+      ${executionSteps.map((step, index) => {
+        const state = executionActiveIndex === -1
+          ? 'upcoming'
+          : stageState(index, executionActiveIndex);
+        const detail = state === 'completed'
+          ? `${step.detail} Completed in playback.`
+          : state === 'current'
+            ? `${step.detail} Active now.`
+            : `${step.detail} Waiting.`;
+        return `
+          <div class="execution-entry ${state}">
+            <div class="execution-entry-title">${step.title}</div>
+            <div class="execution-entry-meta">${detail}</div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
 function renderVisualState(item, stageIndexOverride = null) {
   if (!item) {
     currentCase.innerHTML = 'No active request selected.';
     ticketStatePanel.innerHTML = 'No current ticket state.';
     workflowActivityPanel.innerHTML = 'No workflow activity.';
     phaseTimelinePanel.innerHTML = 'No phase timeline.';
+    humanInvolvementPanel.innerHTML = 'No human involvement.';
+    executionTracePanel.innerHTML = 'No execution trace.';
     flowPipeline.innerHTML = '';
     return;
   }
@@ -288,6 +394,8 @@ function renderVisualState(item, stageIndexOverride = null) {
 
   renderFlow(item, stageIndex);
   renderPhaseTimeline(item, stageIndex);
+  renderHumanInvolvement(item);
+  renderExecutionTrace(item, stageIndex);
 }
 
 function renderInspector(item) {
@@ -453,7 +561,7 @@ function renderRuntimeStrip(data) {
       ${selected ? `<span class="tag">focus: ${selected.actualClassification} -> ${selected.actualOwner}</span>` : ''}
       ${selected && stageInfo ? `<span class="tag">stage ${stageIndex + 1}/${stageInfo.stages.length}</span>` : ''}
     </div>
-    <p class="muted" style="margin-top:12px; margin-bottom:0;">Playback now advances process-by-process inside each request before moving to the next one.</p>
+    <p class="muted" style="margin-top:12px; margin-bottom:0;">Playback now shows workflow movement, human trust checkpoints, and concrete execution work inside the target system.</p>
   `;
 }
 
