@@ -7,6 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, '..');
 const dbPath = path.join(root, 'api', 'storage', 'db.json');
+const seedStatePath = path.join(root, 'dashboard', '.seed-state.json');
 const app = express();
 const PORT = process.env.PORT || 4411;
 
@@ -34,29 +35,17 @@ function buildRoute(result) {
   return [...new Set(base)];
 }
 
-app.get('/api/runtime', (_req, res) => {
-  const db = readDb();
-  const requests = db.requests.map((item) => ({
-    ...item,
-    actualClassification: item.classification,
-    actualOwner: item.owner,
-    route: buildRoute(item),
-    artifact: db.artifacts.find((artifact) => artifact.requestId === item.id) || null,
-    traceCount: db.traces.filter((trace) => trace.requestId === item.id).length,
-    pass: true
-  }));
+function isSeeded() {
+  return fs.existsSync(seedStatePath);
+}
 
-  res.json({
-    summary: {
-      totalRequests: requests.length,
-      classifiedRequests: requests.filter((item) => item.classification).length,
-      totalArtifacts: db.artifacts.length
-    },
-    requests: [...requests].reverse()
-  });
-});
+function markSeeded() {
+  fs.writeFileSync(seedStatePath, JSON.stringify({ seeded: true }, null, 2));
+}
 
-app.post('/api/runtime/reset-from-tests', (_req, res) => {
+function seedFromTestsIfNeeded() {
+  if (isSeeded()) return;
+
   const cases = JSON.parse(fs.readFileSync(path.join(root, 'tests', 'request-cases.json'), 'utf8'));
   const nextDb = { requests: [], traces: [], artifacts: [] };
 
@@ -109,7 +98,35 @@ app.post('/api/runtime/reset-from-tests', (_req, res) => {
   }
 
   writeDb(nextDb);
-  res.json({ ok: true, seeded: nextDb.requests.length });
+  markSeeded();
+}
+
+app.get('/api/runtime', (_req, res) => {
+  seedFromTestsIfNeeded();
+  const db = readDb();
+  const requests = db.requests.map((item) => ({
+    ...item,
+    actualClassification: item.classification,
+    actualOwner: item.owner,
+    route: buildRoute(item),
+    artifact: db.artifacts.find((artifact) => artifact.requestId === item.id) || null,
+    traceCount: db.traces.filter((trace) => trace.requestId === item.id).length
+  }));
+
+  res.json({
+    summary: {
+      totalRequests: requests.length,
+      classifiedRequests: requests.filter((item) => item.classification).length,
+      totalArtifacts: db.artifacts.length
+    },
+    requests: [...requests].reverse()
+  });
+});
+
+app.post('/api/runtime/reset-from-tests', (_req, res) => {
+  if (fs.existsSync(seedStatePath)) fs.unlinkSync(seedStatePath);
+  seedFromTestsIfNeeded();
+  res.json({ ok: true });
 });
 
 app.listen(PORT, () => {
