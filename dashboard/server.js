@@ -1,5 +1,4 @@
 import express from 'express';
-import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -7,11 +6,20 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, '..');
+const dbPath = path.join(root, 'api', 'storage', 'db.json');
 const app = express();
 const PORT = process.env.PORT || 4411;
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
+
+function readDb() {
+  return JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+}
+
+function writeDb(data) {
+  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
+}
 
 function buildRoute(result) {
   const base = ['request-queue', 'helpdesk-lead'];
@@ -26,45 +34,82 @@ function buildRoute(result) {
   return [...new Set(base)];
 }
 
-function classify(text) {
-  const result = spawnSync('node', [path.join(root, 'runtime', 'router', 'classify-request.js'), text], {
-    encoding: 'utf8'
+app.get('/api/runtime', (_req, res) => {
+  const db = readDb();
+  const requests = db.requests.map((item) => ({
+    ...item,
+    actualClassification: item.classification,
+    actualOwner: item.owner,
+    route: buildRoute(item),
+    artifact: db.artifacts.find((artifact) => artifact.requestId === item.id) || null,
+    traceCount: db.traces.filter((trace) => trace.requestId === item.id).length,
+    pass: true
+  }));
+
+  res.json({
+    summary: {
+      totalRequests: requests.length,
+      classifiedRequests: requests.filter((item) => item.classification).length,
+      totalArtifacts: db.artifacts.length
+    },
+    requests: [...requests].reverse()
   });
-
-  const parsed = JSON.parse(result.stdout);
-  return { ...parsed, route: buildRoute(parsed) };
-}
-
-app.get('/api/tests', (_req, res) => {
-  const cases = JSON.parse(fs.readFileSync(path.join(root, 'tests', 'request-cases.json'), 'utf8'));
-  const results = cases.map((testCase) => {
-    const parsed = classify(testCase.input);
-    const pass = parsed.classification === testCase.expectedClassification && parsed.owner === testCase.expectedOwner;
-
-    return {
-      input: testCase.input,
-      expectedClassification: testCase.expectedClassification,
-      expectedOwner: testCase.expectedOwner,
-      actualClassification: parsed.classification,
-      actualOwner: parsed.owner,
-      escalation: parsed.escalation,
-      route: parsed.route,
-      pass
-    };
-  });
-
-  const passed = results.filter((r) => r.pass).length;
-  res.json({ passed, total: results.length, results });
 });
 
-app.post('/api/classify', (req, res) => {
-  const text = String(req.body?.input || '').trim();
-  if (!text) {
-    return res.status(400).json({ error: 'Missing input' });
+app.post('/api/runtime/reset-from-tests', (_req, res) => {
+  const cases = JSON.parse(fs.readFileSync(path.join(root, 'tests', 'request-cases.json'), 'utf8'));
+  const nextDb = { requests: [], traces: [], artifacts: [] };
+
+  for (const testCase of cases) {
+    const id = `req_${Math.random().toString(36).slice(2, 10)}`;
+    const request = {
+      id,
+      source: 'test-corpus',
+      input: testCase.input,
+      status: 'classified',
+      classification: testCase.expectedClassification,
+      owner: testCase.expectedOwner,
+      escalation: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    nextDb.requests.push(request);
+    nextDb.traces.push({
+      id: `evt_${Math.random().toString(36).slice(2, 10)}`,
+      requestId: id,
+      type: 'request.created',
+      actor: 'seed',
+      timestamp: new Date().toISOString(),
+      data: { source: 'test-corpus' }
+    });
+    nextDb.traces.push({
+      id: `evt_${Math.random().toString(36).slice(2, 10)}`,
+      requestId: id,
+      type: 'request.classified',
+      actor: 'seed',
+      timestamp: new Date().toISOString(),
+      data: {
+        classification: testCase.expectedClassification,
+        owner: testCase.expectedOwner
+      }
+    });
+    nextDb.artifacts.push({
+      id: `art_${Math.random().toString(36).slice(2, 10)}`,
+      requestId: id,
+      type: `${testCase.expectedClassification}-summary`,
+      owner: testCase.expectedOwner,
+      content: {
+        summary: testCase.input,
+        classification: testCase.expectedClassification,
+        owner: testCase.expectedOwner
+      },
+      createdAt: new Date().toISOString()
+    });
   }
 
-  const parsed = classify(text);
-  res.json(parsed);
+  writeDb(nextDb);
+  res.json({ ok: true, seeded: nextDb.requests.length });
 });
 
 app.listen(PORT, () => {

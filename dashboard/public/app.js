@@ -43,20 +43,13 @@ function renderQueue() {
 }
 
 function renderArtifacts(item) {
+  const artifactType = item.artifact?.type || `${item.actualClassification} summary`;
   artifactPanel.innerHTML = `
     <h2>Generated Artifact</h2>
-    <p><strong>Type:</strong> ${item.actualClassification} summary</p>
+    <p><strong>Type:</strong> ${artifactType}</p>
     <p><strong>Owner:</strong> ${item.actualOwner}</p>
-    <p><strong>Suggested output:</strong> ${artifactLabel(item)}</p>
+    <p><strong>Trace events:</strong> ${item.traceCount || 0}</p>
   `;
-}
-
-function artifactLabel(item) {
-  if (item.actualClassification === 'support-issue') return 'triage summary';
-  if (item.actualClassification === 'access-request') return 'access review note';
-  if (item.actualClassification === 'incident') return 'incident summary';
-  if (item.actualClassification === 'infrastructure-change') return 'change plan';
-  return 'routing note';
 }
 
 function movePulseToNode(node) {
@@ -81,14 +74,14 @@ async function animateRoute(route) {
   }
 }
 
-async function renderActive(item, title = 'Active Scenario') {
+async function renderActive(item, title = 'Active Request') {
   currentCase.innerHTML = `
     <h2>${title}</h2>
     <p>${item.input}</p>
     <div class="meta">
       <span class="tag">class: ${item.actualClassification}</span>
       <span class="tag">owner: ${item.actualOwner}</span>
-      <span class="tag ${item.pass ? 'pass' : 'fail'}">${item.pass ? 'PASS' : 'FAIL'}</span>
+      <span class="tag">status: ${item.status}</span>
     </div>
     <div class="meta">
       ${((item.escalation || []).map((e) => `<span class="tag">escalate: ${e}</span>`).join('')) || '<span class="tag">no escalation</span>'}
@@ -131,29 +124,29 @@ function startPlayback() {
 }
 
 async function load() {
-  const res = await fetch('/api/tests');
+  await fetch('/api/runtime/reset-from-tests', { method: 'POST' });
+  const res = await fetch('/api/runtime');
   const data = await res.json();
-  cases = data.results;
+  cases = data.requests;
   history = [];
   queue = [];
   renderHistory();
   renderQueue();
 
   summary.innerHTML = `
-    <div class="summary-card"><div class="label">Passed</div><div class="value">${data.passed}</div></div>
-    <div class="summary-card"><div class="label">Total</div><div class="value">${data.total}</div></div>
-    <div class="summary-card"><div class="label">Status</div><div class="value">${data.passed === data.total ? 'Healthy' : 'Needs work'}</div></div>
+    <div class="summary-card"><div class="label">Requests</div><div class="value">${data.summary.totalRequests}</div></div>
+    <div class="summary-card"><div class="label">Classified</div><div class="value">${data.summary.classifiedRequests}</div></div>
+    <div class="summary-card"><div class="label">Artifacts</div><div class="value">${data.summary.totalArtifacts}</div></div>
   `;
 
-  results.innerHTML = data.results.map((item) => `
+  results.innerHTML = data.requests.map((item) => `
     <article class="card">
       <h2>${item.input}</h2>
       <div class="meta">
-        <span class="tag">expected class: ${item.expectedClassification}</span>
-        <span class="tag">actual class: ${item.actualClassification}</span>
-        <span class="tag">expected owner: ${item.expectedOwner}</span>
-        <span class="tag">actual owner: ${item.actualOwner}</span>
-        <span class="tag ${item.pass ? 'pass' : 'fail'}">${item.pass ? 'PASS' : 'FAIL'}</span>
+        <span class="tag">class: ${item.actualClassification}</span>
+        <span class="tag">owner: ${item.actualOwner}</span>
+        <span class="tag">status: ${item.status}</span>
+        <span class="tag">trace events: ${item.traceCount || 0}</span>
       </div>
     </article>
   `).join('');
