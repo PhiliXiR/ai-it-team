@@ -193,6 +193,59 @@ app.get('/api/requests/:id/approvals', (req, res) => {
   res.json(db.approvals.filter((item) => item.requestId === req.params.id));
 });
 
+app.get('/api/approvals', (_req, res) => {
+  const db = ensureArrays(readDb());
+  res.json(db.approvals);
+});
+
+app.post('/api/approvals/:id/approve', (req, res) => {
+  const db = ensureArrays(readDb());
+  const approval = db.approvals.find((item) => item.id === req.params.id);
+  if (!approval) return res.status(404).json({ error: 'Approval not found' });
+  approval.status = 'approved';
+  approval.resolvedAt = new Date().toISOString();
+
+  const request = db.requests.find((item) => item.id === approval.requestId);
+  if (request) {
+    request.status = 'in-progress';
+    request.owner = 'iam-specialist';
+    request.updatedAt = new Date().toISOString();
+    addTrace(db, request.id, 'approval.approved', req.body?.actor || 'human-operator', {
+      approvalId: approval.id
+    });
+    addTrace(db, request.id, 'request.resumed', 'workflow', {
+      owner: request.owner,
+      status: request.status
+    });
+  }
+
+  writeDb(db);
+  res.json({ approval, request });
+});
+
+app.post('/api/approvals/:id/reject', (req, res) => {
+  const db = ensureArrays(readDb());
+  const approval = db.approvals.find((item) => item.id === req.params.id);
+  if (!approval) return res.status(404).json({ error: 'Approval not found' });
+  approval.status = 'rejected';
+  approval.resolvedAt = new Date().toISOString();
+
+  const request = db.requests.find((item) => item.id === approval.requestId);
+  if (request) {
+    request.status = 'blocked';
+    request.updatedAt = new Date().toISOString();
+    addTrace(db, request.id, 'approval.rejected', req.body?.actor || 'human-operator', {
+      approvalId: approval.id
+    });
+    addTrace(db, request.id, 'request.blocked', 'workflow', {
+      status: request.status
+    });
+  }
+
+  writeDb(db);
+  res.json({ approval, request });
+});
+
 app.get('/api/dashboard/summary', (_req, res) => {
   const db = ensureArrays(readDb());
   res.json({

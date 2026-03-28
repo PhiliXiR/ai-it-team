@@ -4,10 +4,12 @@ const refreshBtn = document.getElementById('refreshBtn');
 const currentCase = document.getElementById('currentCase');
 const historyList = document.getElementById('historyList');
 const queueList = document.getElementById('queueList');
+const approvalsList = document.getElementById('approvalsList');
 const artifactPanel = document.getElementById('artifactPanel');
 const pulseDot = document.getElementById('pulseDot');
 const topologyWrap = document.getElementById('topologyWrap');
 let cases = [];
+let approvals = [];
 let activeIndex = 0;
 let intervalId;
 let history = [];
@@ -28,6 +30,7 @@ function renderHistory() {
       <div class="meta">
         <span class="tag">class: ${item.actualClassification}</span>
         <span class="tag">owner: ${item.actualOwner}</span>
+        <span class="tag">status: ${item.status}</span>
       </div>
     </div>
   `).join('');
@@ -42,6 +45,23 @@ function renderQueue() {
   `).join('');
 }
 
+function renderApprovals() {
+  const pending = approvals.filter((item) => item.status === 'pending');
+  approvalsList.innerHTML = pending.length ? pending.map((item) => `
+    <div class="history-entry">
+      <strong>${item.type}</strong>
+      <div class="meta">
+        <span class="tag">requested by: ${item.requestedBy}</span>
+        <span class="tag">approver: ${item.requiredApproverRole}</span>
+      </div>
+      <div class="meta">
+        <button data-action="approve" data-id="${item.id}">Approve</button>
+        <button data-action="reject" data-id="${item.id}">Reject</button>
+      </div>
+    </div>
+  `).join('') : '<p>No pending approvals.</p>';
+}
+
 function renderArtifacts(item) {
   const artifactType = item.artifact?.type || `${item.actualClassification} summary`;
   artifactPanel.innerHTML = `
@@ -49,6 +69,7 @@ function renderArtifacts(item) {
     <p><strong>Type:</strong> ${artifactType}</p>
     <p><strong>Owner:</strong> ${item.actualOwner}</p>
     <p><strong>Trace events:</strong> ${item.traceCount || 0}</p>
+    <p><strong>Approvals:</strong> ${(item.approvals || []).length}</p>
   `;
 }
 
@@ -129,15 +150,17 @@ async function load({ reset = false } = {}) {
   const res = await fetch('/api/runtime');
   const data = await res.json();
   cases = data.requests;
+  approvals = data.approvals || [];
   history = [];
   queue = [];
   renderHistory();
   renderQueue();
+  renderApprovals();
 
   summary.innerHTML = `
     <div class="summary-card"><div class="label">Requests</div><div class="value">${data.summary.totalRequests}</div></div>
-    <div class="summary-card"><div class="label">Classified</div><div class="value">${data.summary.classifiedRequests}</div></div>
     <div class="summary-card"><div class="label">Artifacts</div><div class="value">${data.summary.totalArtifacts}</div></div>
+    <div class="summary-card"><div class="label">Awaiting Approval</div><div class="value">${data.summary.awaitingApproval}</div></div>
   `;
 
   results.innerHTML = data.requests.map((item) => `
@@ -155,6 +178,15 @@ async function load({ reset = false } = {}) {
   activeIndex = 0;
   startPlayback();
 }
+
+approvalsList.addEventListener('click', async (event) => {
+  const button = event.target.closest('button[data-action]');
+  if (!button) return;
+  const id = button.dataset.id;
+  const action = button.dataset.action;
+  await fetch(`/api/runtime/approvals/${id}/${action}`, { method: 'POST' });
+  await load();
+});
 
 refreshBtn.addEventListener('click', () => load({ reset: true }));
 load();

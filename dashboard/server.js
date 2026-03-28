@@ -47,7 +47,7 @@ function seedFromTestsIfNeeded() {
   if (isSeeded()) return;
 
   const cases = JSON.parse(fs.readFileSync(path.join(root, 'tests', 'request-cases.json'), 'utf8'));
-  const nextDb = { requests: [], traces: [], artifacts: [] };
+  const nextDb = { requests: [], traces: [], artifacts: [], approvals: [] };
 
   for (const testCase of cases) {
     const id = `req_${Math.random().toString(36).slice(2, 10)}`;
@@ -97,6 +97,43 @@ function seedFromTestsIfNeeded() {
     });
   }
 
+  const accessRequest = nextDb.requests.find((item) => item.classification === 'access-request');
+  if (accessRequest) {
+    accessRequest.status = 'awaiting-approval';
+    accessRequest.owner = 'iam-lead';
+    const approvalId = `appr_${Math.random().toString(36).slice(2, 10)}`;
+    nextDb.approvals.push({
+      id: approvalId,
+      requestId: accessRequest.id,
+      type: 'privileged-access',
+      requestedBy: 'iam-lead',
+      requiredApproverRole: 'security-director',
+      reason: 'Privileged or incompletely approved access requires additional review.',
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      resolvedAt: null
+    });
+    nextDb.traces.push({
+      id: `evt_${Math.random().toString(36).slice(2, 10)}`,
+      requestId: accessRequest.id,
+      type: 'approval.created',
+      actor: 'seed',
+      timestamp: new Date().toISOString(),
+      data: { approvalId }
+    });
+    nextDb.artifacts.push({
+      id: `art_${Math.random().toString(36).slice(2, 10)}`,
+      requestId: accessRequest.id,
+      type: 'access-review-note',
+      owner: 'iam-lead',
+      content: {
+        summary: 'Access request requires approval before implementation.',
+        approvalNeeded: true
+      },
+      createdAt: new Date().toISOString()
+    });
+  }
+
   writeDb(nextDb);
   markSeeded();
 }
@@ -110,15 +147,18 @@ app.get('/api/runtime', (_req, res) => {
     actualOwner: item.owner,
     route: buildRoute(item),
     artifact: db.artifacts.find((artifact) => artifact.requestId === item.id) || null,
-    traceCount: db.traces.filter((trace) => trace.requestId === item.id).length
+    traceCount: db.traces.filter((trace) => trace.requestId === item.id).length,
+    approvals: db.approvals.filter((approval) => approval.requestId === item.id)
   }));
 
   res.json({
     summary: {
       totalRequests: requests.length,
       classifiedRequests: requests.filter((item) => item.classification).length,
-      totalArtifacts: db.artifacts.length
+      totalArtifacts: db.artifacts.length,
+      awaitingApproval: db.approvals.filter((item) => item.status === 'pending').length
     },
+    approvals: db.approvals,
     requests: [...requests].reverse()
   });
 });
@@ -126,6 +166,57 @@ app.get('/api/runtime', (_req, res) => {
 app.post('/api/runtime/reset-from-tests', (_req, res) => {
   if (fs.existsSync(seedStatePath)) fs.unlinkSync(seedStatePath);
   seedFromTestsIfNeeded();
+  res.json({ ok: true });
+});
+
+app.post('/api/runtime/approvals/:id/approve', (req, res) => {
+  const db = readDb();
+  const approval = db.approvals.find((item) => item.id === req.params.id);
+  if (!approval) return res.status(404).json({ error: 'Approval not found' });
+  approval.status = 'approved';
+  approval.resolvedAt = new Date().toISOString();
+
+  const request = db.requests.find((item) => item.id === approval.requestId);
+  if (request) {
+    request.status = 'in-progress';
+    request.owner = 'iam-specialist';
+    request.updatedAt = new Date().toISOString();
+    db.traces.push({
+      id: `evt_${Math.random().toString(36).slice(2, 10)}`,
+      requestId: request.id,
+      type: 'approval.approved',
+      actor: 'dashboard',
+      timestamp: new Date().toISOString(),
+      data: { approvalId: approval.id }
+    });
+  }
+
+  writeDb(db);
+  res.json({ ok: true });
+});
+
+app.post('/api/runtime/approvals/:id/reject', (req, res) => {
+  const db = readDb();
+  const approval = db.approvals.find((item) => item.id === req.params.id);
+  if (!approval) return res.status(404).json({ error: 'Approval not found' });
+  approval.status = 'rejected';
+  approval.resolvedAt = new Date().toISOString();
+
+  const request = db.requests.find((item) => item.id === approval.requestId);
+  if (request) {
+    request.status = 'blocked';
+    request.updatedAt = new Date().toISOString();
+    db.traces.push({
+      id: `evt_${Math.random().toString(36).slice(2, 10)}`,
+      requestId: request.id,
+      type: 'approval.rejected',
+      actor: 'dashboard',
+      timestamp: new Date().toISOString(),
+      data: { approvalId: approval.id }
+    });
+  }
+
+  writeDb(db);
   res.json({ ok: true });
 });
 
