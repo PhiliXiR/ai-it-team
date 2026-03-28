@@ -1,5 +1,6 @@
 const summary = document.getElementById('summary');
 const results = document.getElementById('results');
+const inspectorRequestList = document.getElementById('inspectorRequestList');
 const runtimeStrip = document.getElementById('runtimeStrip');
 const refreshBtn = document.getElementById('refreshBtn');
 const pauseBtn = document.getElementById('pauseBtn');
@@ -10,6 +11,7 @@ const modeInspectBtn = document.getElementById('modeInspectBtn');
 const visualModeView = document.getElementById('visualModeView');
 const inspectionModeView = document.getElementById('inspectionModeView');
 const currentCase = document.getElementById('currentCase');
+const flowPipeline = document.getElementById('flowPipeline');
 const historyList = document.getElementById('historyList');
 const queueList = document.getElementById('queueList');
 const approvalsList = document.getElementById('approvalsList');
@@ -51,6 +53,23 @@ function clearActive() {
   pulseDot.style.opacity = 0;
 }
 
+function buildFlowStages(item) {
+  const route = item?.route || [];
+  return route.map((step, index) => {
+    const state = index < route.length - 1 ? (index === route.length - 1 ? 'current' : 'completed') : 'current';
+    return { id: step, label: step.replaceAll('-', ' '), state };
+  });
+}
+
+function renderFlow(item) {
+  const route = item?.route || [];
+  const currentIndex = route.length ? route.length - 1 : -1;
+  flowPipeline.innerHTML = route.map((step, index) => {
+    const state = index < currentIndex ? 'completed' : index === currentIndex ? 'current' : 'upcoming';
+    return `${index > 0 ? '<span class="flow-arrow">→</span>' : ''}<div class="flow-step ${state}">${step.replaceAll('-', ' ')}</div>`;
+  }).join('');
+}
+
 function renderHistory() {
   historyList.innerHTML = history.map((item) => `
     <div class="history-entry">
@@ -64,14 +83,14 @@ function renderHistory() {
 }
 
 function renderQueue() {
-  queueList.innerHTML = queue.length
-    ? queue.map((item) => `
-      <div class="queue-entry pending">
-        <strong>Now processing</strong>
-        <div>${item.input}</div>
+  queueList.innerHTML = cases.map((item) => `
+    <div class="queue-entry">
+      <strong>${item.input}</strong>
+      <div class="meta">
+        <span class="tag ${statusTag(item.status)}">${item.status}</span>
       </div>
-    `).join('')
-    : `<p class="muted">Playback is ${playbackPaused ? 'paused' : 'idle'}.</p>`;
+    </div>
+  `).join('');
 }
 
 function renderApprovals() {
@@ -118,6 +137,7 @@ function renderInspector(item) {
     traceDetail.innerHTML = 'No trace events available.';
     artifactSummary.innerHTML = 'No artifact selected.';
     dataObjectsPanel.innerHTML = 'Select a request to inspect the underlying objects.';
+    flowPipeline.innerHTML = '';
     return;
   }
 
@@ -131,13 +151,19 @@ function renderInspector(item) {
 
   currentCase.innerHTML = `
     <h2>Current Focus</h2>
-    <p>${item.input}</p>
+    <div class="focus-title">${item.input}</div>
+    <p class="muted">Watch this request move through the workflow. The highlighted stage shows where it is now.</p>
     <div class="meta">
       <span class="tag">owner: ${item.actualOwner}</span>
       <span class="tag ${statusTag(item.status)}">${item.status}</span>
       <span class="tag">class: ${item.actualClassification}</span>
     </div>
+    <div class="meta">
+      <span class="tag">next: ${nextStep}</span>
+    </div>
   `;
+
+  renderFlow(item);
 
   requestSummary.innerHTML = `
     <p>${item.input}</p>
@@ -238,10 +264,8 @@ async function renderActive(item) {
   renderInspector(item);
   renderApprovals();
   queue = [{ input: item.input }];
-  renderQueue();
   await animateRoute(item.route || []);
   queue = [];
-  renderQueue();
   const alreadySeen = history.some((entry) => entry.id === item.id);
   if (!alreadySeen) {
     history = [item, ...history].slice(0, 8);
@@ -275,7 +299,6 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
   cases = data.requests;
   approvals = data.approvals || [];
   if (!preserveHistory) history = [];
-  queue = [];
   renderHistory();
   renderQueue();
   renderAgentStatus();
@@ -286,7 +309,7 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
     <div class="summary-card"><div class="label">Awaiting Approval</div><div class="value">${data.summary.awaitingApproval}</div></div>
   `;
 
-  results.innerHTML = data.requests.map((item) => `
+  const cardsHtml = data.requests.map((item) => `
     <article class="card request-card" data-request-id="${item.id}">
       <h3>${item.input}</h3>
       <div class="meta">
@@ -296,6 +319,8 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
       </div>
     </article>
   `).join('');
+  results.innerHTML = cardsHtml;
+  inspectorRequestList.innerHTML = cardsHtml;
 
   const selected = cases.find((item) => item.id === selectedRequestId) || cases[0] || null;
   renderInspector(selected);
@@ -324,7 +349,6 @@ function startPlayback() {
 function pausePlayback() {
   playbackPaused = true;
   if (intervalId) clearInterval(intervalId);
-  renderQueue();
   renderRuntimeStrip({ summary: { totalRequests: cases.length, totalArtifacts: cases.filter(Boolean).length, awaitingApproval: approvals.filter((a) => a.status === 'pending').length } });
 }
 
@@ -371,12 +395,12 @@ approvalsList.addEventListener('click', async (event) => {
   await fetch(`/api/runtime/approvals/${id}/${action}`, { method: 'POST' });
 });
 
-results.addEventListener('click', (event) => {
+document.addEventListener('click', (event) => {
   const card = event.target.closest('[data-request-id]');
   if (!card) return;
   const item = cases.find((entry) => entry.id === card.dataset.requestId);
   if (item) {
-    setMode('inspect');
+    if (card.closest('#inspectionModeView')) setMode('inspect');
     pausePlayback();
     renderActive(item);
   }

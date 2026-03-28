@@ -12,15 +12,25 @@
       <div>
         <p class="eyebrow">ai-it-team</p>
         <h1>Topology Dashboard</h1>
-        <p class="sub">Requests -> agents -> systems, visualized from the current runtime state.</p>
+        <p class="sub">Follow one request as it moves through an AI-assisted IT workflow.</p>
       </div>
-      <div class="meta">
-        <button id="modeVisualBtn">Visual Mode</button>
-        <button id="modeInspectBtn">Inspection Mode</button>
-        <button id="pauseBtn">Pause</button>
-        <button id="resumeBtn">Resume</button>
-        <button id="stepBtn">Step</button>
-        <button id="refreshBtn">Refresh</button>
+      <div class="toolbar-groups">
+        <div class="toolbar-group">
+          <span class="toolbar-label">View</span>
+          <div class="meta">
+            <button id="modeVisualBtn">Visual Mode</button>
+            <button id="modeInspectBtn">Inspection Mode</button>
+          </div>
+        </div>
+        <div class="toolbar-group">
+          <span class="toolbar-label">Playback</span>
+          <div class="meta">
+            <button id="pauseBtn">Pause</button>
+            <button id="resumeBtn">Resume</button>
+            <button id="stepBtn">Step</button>
+            <button id="refreshBtn">Refresh</button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -28,6 +38,14 @@
     <section class="runtime-strip card" id="runtimeStrip"></section>
 
     <div id="visualModeView">
+      <section class="focus-hero card">
+        <div class="focus-copy" id="currentCase"></div>
+        <div class="flow-stage-panel">
+          <h2>Current Flow</h2>
+          <div id="flowPipeline" class="flow-pipeline"></div>
+        </div>
+      </section>
+
       <section class="topology-wrap" id="topologyWrap">
         <div class="pulse-dot" id="pulseDot"></div>
         <div class="column">
@@ -50,18 +68,15 @@
           <div class="node" data-node="security-director">Security Director</div>
         </div>
         <div class="column">
-          <h2>Requests</h2>
-          <div class="node" data-node="request-queue">Request Queue</div>
+          <h2>Queue</h2>
+          <div id="queueList"></div>
         </div>
       </section>
 
-      <section class="grid-2">
-        <section class="current-case card" id="currentCase"></section>
-        <section class="queue card">
-          <h2>Queue + Recent Activity</h2>
-          <div id="queueList"></div>
-          <div id="historyList"></div>
-        </section>
+      <section class="selector-panel card">
+        <h2>Request Queue</h2>
+        <p class="muted">Select a request to change the current focus.</p>
+        <div id="results"></div>
       </section>
     </div>
 
@@ -69,7 +84,7 @@
       <section class="inspector-layout">
         <section class="card inspector-list">
           <h2>Requests</h2>
-          <div id="results"></div>
+          <div id="inspectorRequestList"></div>
         </section>
         <section class="card inspector-detail">
           <section class="inspector-section">
