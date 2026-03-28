@@ -80,6 +80,119 @@ async function createRequestFromCase(testCase) {
   });
 }
 
+function syntheticTraceFor(item, approvals = []) {
+  const base = [
+    {
+      type: 'workflow.entered_queue',
+      actor: 'intake',
+      data: { summary: 'Request entered the intake queue.' }
+    },
+    {
+      type: 'workflow.classified',
+      actor: 'helpdesk-lead',
+      data: { summary: `Request classified as ${item.classification}.` }
+    },
+    {
+      type: 'workflow.owner_assigned',
+      actor: item.owner,
+      data: { summary: `${item.owner} took ownership of the request.` }
+    }
+  ];
+
+  if (item.classification === 'access-request') {
+    base.push(
+      {
+        type: 'policy.check.started',
+        actor: 'iam-lead',
+        data: { summary: 'Policy and entitlement review started.' }
+      },
+      {
+        type: 'policy.check.completed',
+        actor: 'iam-lead',
+        data: { summary: 'Access policy review completed.' }
+      }
+    );
+  }
+
+  if (item.classification === 'support-issue') {
+    base.push(
+      {
+        type: 'execution.read.started',
+        actor: item.owner,
+        data: { summary: 'Read current service state from the VPN backend.' }
+      },
+      {
+        type: 'execution.change.applied',
+        actor: 'vpn-specialist',
+        data: { summary: 'Applied a candidate remediation in the VPN service.' }
+      },
+      {
+        type: 'verification.check.passed',
+        actor: 'vpn-specialist',
+        data: { summary: 'Connectivity verification passed after the change.' }
+      }
+    );
+  }
+
+  if (item.classification === 'incident') {
+    base.push(
+      {
+        type: 'execution.investigation.started',
+        actor: 'incident-triage-specialist',
+        data: { summary: 'Incident triage began investigating service health.' }
+      },
+      {
+        type: 'execution.change.applied',
+        actor: 'incident-lead',
+        data: { summary: 'Applied a remediation or rollback to stabilize the service.' }
+      },
+      {
+        type: 'verification.check.passed',
+        actor: 'incident-lead',
+        data: { summary: 'Service health verification passed.' }
+      }
+    );
+  }
+
+  if (item.classification === 'infrastructure-change') {
+    base.push(
+      {
+        type: 'policy.check.started',
+        actor: 'systems-lead',
+        data: { summary: 'Change safety review started.' }
+      },
+      {
+        type: 'execution.change.applied',
+        actor: 'systems-lead',
+        data: { summary: 'Applied the requested infrastructure change.' }
+      },
+      {
+        type: 'verification.check.passed',
+        actor: 'systems-lead',
+        data: { summary: 'Post-change verification passed.' }
+      }
+    );
+  }
+
+  for (const approval of approvals) {
+    base.push({
+      type: approval.status === 'approved' ? 'human.approval.granted' : approval.status === 'rejected' ? 'human.approval.rejected' : 'human.approval.requested',
+      actor: approval.requiredApproverRole,
+      data: { summary: `${approval.requiredApproverRole} ${approval.status || 'pending'} ${approval.type}.` }
+    });
+  }
+
+  if (item.status === 'blocked') {
+    base.push({
+      type: 'human.intervention.required',
+      actor: 'human-operator',
+      data: { summary: 'A person must intervene before the workflow can continue.' }
+    });
+  }
+
+  return base;
+}
+
 async function enrichScenario(request) {
   const input = request.input.toLowerCase();
 
@@ -172,6 +285,25 @@ function deriveExecutionTrace(item) {
   ];
 }
 
+function mergeAndSortTrace(realTrace, syntheticTrace) {
+  const normalizedReal = (realTrace || []).map((entry) => ({
+    ...entry,
+    synthetic: false,
+    sortKey: 1,
+  }));
+
+  const normalizedSynthetic = (syntheticTrace || []).map((entry, index) => ({
+    id: `synthetic_${index}_${entry.type}`,
+    requestId: null,
+    timestamp: null,
+    synthetic: true,
+    sortKey: 2,
+    ...entry,
+  }));
+
+  return [...normalizedReal, ...normalizedSynthetic];
+}
+
 async function buildRuntimePayload() {
   await seedFromTestsIfNeeded();
   const [requests, approvals, summary] = await Promise.all([
@@ -194,10 +326,13 @@ async function buildRuntimePayload() {
       artifact: artifacts[0] || null,
       traceCount: trace.length,
       approvals: requestApprovals,
-      trace
     };
+    const syntheticTrace = syntheticTraceFor(enrichedItem, requestApprovals);
+    const mergedTrace = mergeAndSortTrace(trace, syntheticTrace);
     return {
       ...enrichedItem,
+      trace: mergedTrace,
+      traceCount: mergedTrace.length,
       humanEvents: deriveHumanEvents(enrichedItem),
       executionTrace: deriveExecutionTrace(enrichedItem)
     };

@@ -43,6 +43,22 @@ function statusTag(status) {
   return `status-${status}`;
 }
 
+function prettifyNodeName(value = '') {
+  return value.replaceAll('-', ' ').replaceAll('.', ' ');
+}
+
+function traceKind(entry) {
+  const type = entry.type || '';
+  if (type.includes('approval')) return 'approval';
+  if (type.includes('blocked') || type.includes('intervention')) return 'blocked';
+  if (type.includes('verification') || type.includes('passed') || type.includes('completed')) return 'resolved';
+  return '';
+}
+
+function traceSummary(entry) {
+  return entry?.data?.summary || prettifyNodeName(entry.type || 'event');
+}
+
 function setMode(mode) {
   currentMode = mode;
   visualModeView.style.display = mode === 'visual' ? 'block' : 'none';
@@ -57,10 +73,6 @@ function clearActive() {
     el.classList.remove('processing');
   });
   pulseDot.style.opacity = 0;
-}
-
-function prettifyNodeName(value) {
-  return value.replaceAll('-', ' ');
 }
 
 function deriveHumanEvents(item) {
@@ -204,7 +216,7 @@ function renderAgentStatus() {
     agentStatusList.innerHTML = '<p>No request selected.</p>';
     return;
   }
-  const recent = selected.trace?.slice(-3) || [];
+  const recent = selected.trace?.slice(-4) || [];
   agentStatusList.innerHTML = `
     <div class="history-entry">
       <strong>Current Owner</strong>
@@ -212,7 +224,7 @@ function renderAgentStatus() {
     </div>
     ${recent.map((entry) => `
       <div class="history-entry">
-        <strong>${entry.type}</strong>
+        <strong>${prettifyNodeName(entry.type)}</strong>
         <div class="meta"><span class="tag">${entry.actor}</span></div>
       </div>
     `).join('')}
@@ -316,6 +328,19 @@ function renderVisualState(item, stageIndexOverride = null) {
     </div>
   `;
 
+  workflowActivityPanel.innerHTML = `
+    <h2>Workflow Activity</h2>
+    ${(item.trace || []).slice(0, 4).map((entry) => `
+      <div class="history-entry">
+        <strong>${prettifyNodeName(entry.type)}</strong>
+        <div class="meta">
+          <span class="tag">${traceSummary(entry)}</span>
+          <span class="tag">actor: ${entry.actor}</span>
+        </div>
+      </div>
+    `).join('')}
+  `;
+
   ticketStatePanel.innerHTML = `
     <h2>Current Ticket State</h2>
     <div class="detail-grid">
@@ -325,22 +350,6 @@ function renderVisualState(item, stageIndexOverride = null) {
       <div class="detail-box"><div class="label">Next Step</div><div>${nextStage}</div></div>
     </div>
     <div class="meta"><span class="tag">${currentStageMessage}</span></div>
-  `;
-
-  workflowActivityPanel.innerHTML = `
-    <h2>Workflow Activity</h2>
-    <div class="history-entry">
-      <strong>Entered</strong>
-      <div class="meta"><span class="tag">${currentStage}</span></div>
-    </div>
-    <div class="history-entry">
-      <strong>Current Phase Message</strong>
-      <div class="meta"><span class="tag">${currentStageMessage}</span></div>
-    </div>
-    <div class="history-entry">
-      <strong>Up Next</strong>
-      <div class="meta"><span class="tag">${nextStage}</span></div>
-    </div>
   `;
 
   renderFlow(item, stageIndex);
@@ -390,13 +399,14 @@ function renderInspector(item) {
 
   const trace = item.trace || [];
   traceDetail.innerHTML = trace.length ? trace.map((entry) => {
-    const kind = entry.type.includes('approval') ? 'approval' : entry.type.includes('blocked') ? 'blocked' : entry.type.includes('resolved') ? 'resolved' : '';
+    const kind = traceKind(entry);
     return `
       <div class="timeline-entry ${kind}">
-        <strong>${entry.type}</strong>
+        <strong>${prettifyNodeName(entry.type)}</strong>
         <div class="meta">
+          <span class="tag">${traceSummary(entry)}</span>
           <span class="tag">actor: ${entry.actor}</span>
-          <span class="tag">time: ${new Date(entry.timestamp).toLocaleTimeString()}</span>
+          ${entry.timestamp ? `<span class="tag">time: ${new Date(entry.timestamp).toLocaleTimeString()}</span>` : '<span class="tag">seeded scenario event</span>'}
         </div>
       </div>
     `;
@@ -512,7 +522,7 @@ function renderRuntimeStrip(data) {
       ${selected ? `<span class="tag">focus: ${selected.actualClassification} -> ${selected.actualOwner}</span>` : ''}
       ${selected && stageInfo ? `<span class="tag">stage ${stageIndex + 1}/${stageInfo.stages.length}</span>` : ''}
     </div>
-    <p class="muted" style="margin-top:12px; margin-bottom:0;">Playback now shows workflow movement, human trust checkpoints, and concrete execution work inside the target system.</p>
+    <p class="muted" style="margin-top:12px; margin-bottom:0;">Playback now shows workflow movement, human trust checkpoints, concrete execution work, and clearer trace vocabulary.</p>
   `;
 }
 
