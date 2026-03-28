@@ -109,17 +109,26 @@ textarea {
   border: 1px solid var(--line);
   background: rgba(255,255,255,0.02);
   color: var(--muted);
-  transition: border-color 200ms ease, background 200ms ease, color 200ms ease, box-shadow 200ms ease;
+  transition: border-color 200ms ease, background 200ms ease, color 200ms ease, box-shadow 200ms ease, transform 200ms ease;
 }
 .node.active {
   border-color: var(--blue);
   background: rgba(124, 199, 255, 0.08);
   color: var(--text);
   box-shadow: 0 0 0 1px rgba(124,199,255,0.1), 0 0 24px rgba(124,199,255,0.08);
+  transform: translateY(-2px);
 }
-.current-case {
+.current-case, .history {
   padding: 18px;
   margin-bottom: 18px;
+}
+.history-entry {
+  border-top: 1px solid var(--line);
+  padding: 12px 0;
+}
+.history-entry:first-child {
+  border-top: none;
+  padding-top: 0;
 }
 .results {
   display: grid;

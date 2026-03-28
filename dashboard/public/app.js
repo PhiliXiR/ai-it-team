@@ -4,12 +4,26 @@ const refreshBtn = document.getElementById('refreshBtn');
 const classifyBtn = document.getElementById('classifyBtn');
 const requestInput = document.getElementById('requestInput');
 const currentCase = document.getElementById('currentCase');
+const historyList = document.getElementById('historyList');
 let cases = [];
 let activeIndex = 0;
 let intervalId;
+let history = [];
 
 function clearActive() {
   document.querySelectorAll('.node.active').forEach((el) => el.classList.remove('active'));
+}
+
+function renderHistory() {
+  historyList.innerHTML = history.map((item) => `
+    <div class="history-entry">
+      <strong>${item.input}</strong>
+      <div class="meta">
+        <span class="tag">class: ${item.actualClassification || item.classification}</span>
+        <span class="tag">owner: ${item.actualOwner || item.owner}</span>
+      </div>
+    </div>
+  `).join('');
 }
 
 function renderActive(item, title = 'Active Scenario') {
@@ -80,8 +94,12 @@ async function classifyManualRequest() {
     body: JSON.stringify({ input })
   });
   const data = await res.json();
+  const item = { ...data, input };
+  history.unshift(item);
+  history = history.slice(0, 8);
+  renderHistory();
   if (intervalId) clearInterval(intervalId);
-  renderActive({ ...data, input }, 'Manual Request');
+  renderActive(item, 'Manual Request');
 }
 
 refreshBtn.addEventListener('click', load);
