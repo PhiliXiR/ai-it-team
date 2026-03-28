@@ -124,7 +124,7 @@ npm run test:router
 
 ## Current project structure
 
-- `docs/` — design notes, workflow docs, and experiment framing
+- `docs/` — design notes, workflow docs, experiment framing, and migration ideas
 - `api/` — early runtime spine for request state, traces, artifacts, approvals, and workflow endpoints
 - `agents/` — role specs
 - `runtime/` — router and prompt prototype layer
