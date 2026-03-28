@@ -1,41 +1,41 @@
 [
   {
-    "input": "A user cannot connect to the company VPN from their laptop",
+    "input": "A remote employee cannot connect to the company VPN after a client update and needs access restored today",
     "expectedClassification": "support-issue",
     "expectedOwner": "network-lead"
   },
   {
-    "input": "A contractor needs access to an internal admin tool",
+    "input": "A contractor needs temporary admin access to an internal finance tool for a two-day audit",
     "expectedClassification": "access-request",
     "expectedOwner": "iam-lead"
   },
   {
-    "input": "Multiple users cannot access the internal app and it seems down",
+    "input": "Multiple users report that the internal scheduling app is down across two regions",
     "expectedClassification": "incident",
     "expectedOwner": "incident-lead"
   },
   {
-    "input": "We need an emergency firewall rule change",
+    "input": "An urgent firewall rule change is needed to restore connectivity for a partner integration before a live demo",
     "expectedClassification": "infrastructure-change",
     "expectedOwner": "systems-lead"
   },
   {
-    "input": "The VPN client keeps failing when a remote employee tries to connect from home",
-    "expectedClassification": "support-issue",
-    "expectedOwner": "network-lead"
-  },
-  {
-    "input": "Please grant account access for a new team member to the internal reporting app",
+    "input": "A new employee needs baseline access to the reporting portal and shared drive before Monday onboarding",
     "expectedClassification": "access-request",
     "expectedOwner": "iam-lead"
   },
   {
-    "input": "There is an outage affecting multiple users across the internal scheduling system",
+    "input": "A VIP user says their MFA prompts stopped appearing and they are locked out of the VPN",
+    "expectedClassification": "support-issue",
+    "expectedOwner": "network-lead"
+  },
+  {
+    "input": "The internal wiki is reachable, but edits are failing for several teams after a permissions rollout",
     "expectedClassification": "incident",
     "expectedOwner": "incident-lead"
   },
   {
-    "input": "This change request updates the server config before the maintenance window",
+    "input": "A change request proposes tuning a backend configuration setting in the identity platform before the maintenance window",
     "expectedClassification": "infrastructure-change",
     "expectedOwner": "systems-lead"
   }
