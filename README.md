@@ -138,6 +138,7 @@ A simple walkthrough:
 ## Project structure
 
 - `docs/` — vision, org structure, workflows, boundaries, evaluation, templates, and runtime/system design notes
+- `api/` — early runtime spine for request state, traces, artifacts, and workflow endpoints
 - `agents/` — agent role specs
 - `runtime/` — prompt and router prototype layer
 - `tests/` — request corpus and router tests
