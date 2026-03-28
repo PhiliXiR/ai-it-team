@@ -41,7 +41,7 @@ function renderQueue() {
   queueList.innerHTML = queue.map((item) => `
     <div class="queue-entry pending">
       <strong>${item.input}</strong>
-      <div class="meta"><span class="tag">playing</span></div>
+      <div class="meta"><span class="tag">live</span></div>
     </div>
   `).join('');
 }
@@ -104,7 +104,7 @@ async function animateRoute(route) {
     node.classList.add('active');
     node.classList.add('processing');
     movePulseToNode(node);
-    await new Promise((resolve) => setTimeout(resolve, 520));
+    await new Promise((resolve) => setTimeout(resolve, 420));
     node.classList.remove('processing');
   }
 }
@@ -125,48 +125,19 @@ async function renderActive(item, title = 'Active Request') {
 
   renderArtifacts(item);
   renderTrace(item);
-  await animateRoute(item.route || []);
-}
-
-function enqueueScenario(item) {
   queue = [{ input: item.input }];
   renderQueue();
-}
-
-function completeScenario(item) {
+  await animateRoute(item.route || []);
   queue = [];
   renderQueue();
   history = [item, ...history.filter((entry) => entry.id !== item.id)].slice(0, 8);
   renderHistory();
 }
 
-function startPlayback() {
-  if (intervalId) clearInterval(intervalId);
-  if (!cases.length) return;
-
-  const playNext = async () => {
-    const item = cases[activeIndex];
-    enqueueScenario(item);
-    await new Promise((resolve) => setTimeout(resolve, 420));
-    await renderActive(item);
-    completeScenario(item);
-    activeIndex = (activeIndex + 1) % cases.length;
-  };
-
-  playNext();
-  intervalId = setInterval(playNext, 3400);
-}
-
-async function load({ reset = false } = {}) {
-  if (reset) {
-    await fetch('/api/runtime/reset-from-tests', { method: 'POST' });
-  }
-
-  const res = await fetch('/api/runtime');
-  const data = await res.json();
+function applyRuntimeData(data, { preserveHistory = false } = {}) {
   cases = data.requests;
   approvals = data.approvals || [];
-  history = [];
+  if (!preserveHistory) history = [];
   queue = [];
   renderHistory();
   renderQueue();
@@ -189,9 +160,48 @@ async function load({ reset = false } = {}) {
       </div>
     </article>
   `).join('');
+}
 
+function startPlayback() {
+  if (intervalId) clearInterval(intervalId);
+  if (!cases.length) return;
+
+  const playNext = async () => {
+    const item = cases[activeIndex];
+    await renderActive(item);
+    activeIndex = (activeIndex + 1) % cases.length;
+  };
+
+  playNext();
+  intervalId = setInterval(playNext, 3600);
+}
+
+async function load({ reset = false } = {}) {
+  if (reset) {
+    await fetch('/api/runtime/reset-from-tests', { method: 'POST' });
+  }
+
+  const res = await fetch('/api/runtime');
+  const data = await res.json();
+  applyRuntimeData(data);
   activeIndex = 0;
   startPlayback();
+}
+
+function connectEventStream() {
+  const source = new EventSource('/api/events/stream');
+  source.addEventListener('snapshot', (event) => {
+    const data = JSON.parse(event.data);
+    applyRuntimeData(data);
+  });
+  source.addEventListener('runtime.reset', (event) => {
+    const data = JSON.parse(event.data);
+    applyRuntimeData(data);
+  });
+  source.addEventListener('approval.updated', (event) => {
+    const data = JSON.parse(event.data);
+    applyRuntimeData(data, { preserveHistory: true });
+  });
 }
 
 approvalsList.addEventListener('click', async (event) => {
@@ -200,7 +210,6 @@ approvalsList.addEventListener('click', async (event) => {
   const id = button.dataset.id;
   const action = button.dataset.action;
   await fetch(`/api/runtime/approvals/${id}/${action}`, { method: 'POST' });
-  await load();
 });
 
 results.addEventListener('click', (event) => {
@@ -211,4 +220,5 @@ results.addEventListener('click', (event) => {
 });
 
 refreshBtn.addEventListener('click', () => load({ reset: true }));
+connectEventStream();
 load();

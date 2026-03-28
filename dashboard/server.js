@@ -10,6 +10,7 @@ const dbPath = path.join(root, 'api', 'storage', 'db.json');
 const seedStatePath = path.join(root, 'dashboard', '.seed-state.json');
 const app = express();
 const PORT = process.env.PORT || 4411;
+const clients = new Set();
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
@@ -20,6 +21,11 @@ function readDb() {
 
 function writeDb(data) {
   fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
+}
+
+function sendEvent(type, payload) {
+  const message = `event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`;
+  for (const res of clients) res.write(message);
 }
 
 function buildRoute(result) {
@@ -138,7 +144,7 @@ function seedFromTestsIfNeeded() {
   markSeeded();
 }
 
-app.get('/api/runtime', (_req, res) => {
+function buildRuntimePayload() {
   seedFromTestsIfNeeded();
   const db = readDb();
   const requests = db.requests.map((item) => ({
@@ -152,7 +158,7 @@ app.get('/api/runtime', (_req, res) => {
     trace: db.traces.filter((trace) => trace.requestId === item.id)
   }));
 
-  res.json({
+  return {
     summary: {
       totalRequests: requests.length,
       classifiedRequests: requests.filter((item) => item.classification).length,
@@ -161,12 +167,32 @@ app.get('/api/runtime', (_req, res) => {
     },
     approvals: db.approvals,
     requests: [...requests].reverse()
+  };
+}
+
+app.get('/api/runtime', (_req, res) => {
+  res.json(buildRuntimePayload());
+});
+
+app.get('/api/events/stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  clients.add(res);
+  res.write(`event: snapshot\ndata: ${JSON.stringify(buildRuntimePayload())}\n\n`);
+
+  req.on('close', () => {
+    clients.delete(res);
   });
 });
 
 app.post('/api/runtime/reset-from-tests', (_req, res) => {
   if (fs.existsSync(seedStatePath)) fs.unlinkSync(seedStatePath);
   seedFromTestsIfNeeded();
+  const payload = buildRuntimePayload();
+  sendEvent('runtime.reset', payload);
   res.json({ ok: true });
 });
 
@@ -193,6 +219,8 @@ app.post('/api/runtime/approvals/:id/approve', (req, res) => {
   }
 
   writeDb(db);
+  const payload = buildRuntimePayload();
+  sendEvent('approval.updated', payload);
   res.json({ ok: true });
 });
 
@@ -218,6 +246,8 @@ app.post('/api/runtime/approvals/:id/reject', (req, res) => {
   }
 
   writeDb(db);
+  const payload = buildRuntimePayload();
+  sendEvent('approval.updated', payload);
   res.json({ ok: true });
 });
 
