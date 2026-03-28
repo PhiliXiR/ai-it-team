@@ -148,7 +148,8 @@ app.get('/api/runtime', (_req, res) => {
     route: buildRoute(item),
     artifact: db.artifacts.find((artifact) => artifact.requestId === item.id) || null,
     traceCount: db.traces.filter((trace) => trace.requestId === item.id).length,
-    approvals: db.approvals.filter((approval) => approval.requestId === item.id)
+    approvals: db.approvals.filter((approval) => approval.requestId === item.id),
+    trace: db.traces.filter((trace) => trace.requestId === item.id)
   }));
 
   res.json({

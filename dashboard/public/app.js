@@ -6,6 +6,7 @@ const historyList = document.getElementById('historyList');
 const queueList = document.getElementById('queueList');
 const approvalsList = document.getElementById('approvalsList');
 const artifactPanel = document.getElementById('artifactPanel');
+const traceDetail = document.getElementById('traceDetail');
 const pulseDot = document.getElementById('pulseDot');
 const topologyWrap = document.getElementById('topologyWrap');
 let cases = [];
@@ -73,6 +74,19 @@ function renderArtifacts(item) {
   `;
 }
 
+function renderTrace(item) {
+  const trace = item.trace || [];
+  traceDetail.innerHTML = trace.length ? trace.map((entry) => `
+    <div class="history-entry">
+      <strong>${entry.type}</strong>
+      <div class="meta">
+        <span class="tag">actor: ${entry.actor}</span>
+        <span class="tag">time: ${new Date(entry.timestamp).toLocaleTimeString()}</span>
+      </div>
+    </div>
+  `).join('') : '<p>No trace events available.</p>';
+}
+
 function movePulseToNode(node) {
   if (!node) return;
   const wrapRect = topologyWrap.getBoundingClientRect();
@@ -110,6 +124,7 @@ async function renderActive(item, title = 'Active Request') {
   `;
 
   renderArtifacts(item);
+  renderTrace(item);
   await animateRoute(item.route || []);
 }
 
@@ -164,7 +179,7 @@ async function load({ reset = false } = {}) {
   `;
 
   results.innerHTML = data.requests.map((item) => `
-    <article class="card">
+    <article class="card request-card" data-request-id="${item.id}">
       <h2>${item.input}</h2>
       <div class="meta">
         <span class="tag">class: ${item.actualClassification}</span>
@@ -186,6 +201,13 @@ approvalsList.addEventListener('click', async (event) => {
   const action = button.dataset.action;
   await fetch(`/api/runtime/approvals/${id}/${action}`, { method: 'POST' });
   await load();
+});
+
+results.addEventListener('click', (event) => {
+  const card = event.target.closest('[data-request-id]');
+  if (!card) return;
+  const item = cases.find((entry) => entry.id === card.dataset.requestId);
+  if (item) renderActive(item, 'Selected Request');
 });
 
 refreshBtn.addEventListener('click', () => load({ reset: true }));

@@ -18,5 +18,25 @@
     "input": "We need an emergency firewall rule change",
     "expectedClassification": "infrastructure-change",
     "expectedOwner": "systems-lead"
+  },
+  {
+    "input": "The VPN client keeps failing when a remote employee tries to connect from home",
+    "expectedClassification": "support-issue",
+    "expectedOwner": "network-lead"
+  },
+  {
+    "input": "Please grant account access for a new team member to the internal reporting app",
+    "expectedClassification": "access-request",
+    "expectedOwner": "iam-lead"
+  },
+  {
+    "input": "There is an outage affecting multiple users across the internal scheduling system",
+    "expectedClassification": "incident",
+    "expectedOwner": "incident-lead"
+  },
+  {
+    "input": "This change request updates the server config before the maintenance window",
+    "expectedClassification": "infrastructure-change",
+    "expectedOwner": "systems-lead"
   }
 ]
