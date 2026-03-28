@@ -7,6 +7,8 @@ const currentCase = document.getElementById('currentCase');
 const historyList = document.getElementById('historyList');
 const queueList = document.getElementById('queueList');
 const artifactPanel = document.getElementById('artifactPanel');
+const pulseDot = document.getElementById('pulseDot');
+const topologyWrap = document.getElementById('topologyWrap');
 let cases = [];
 let activeIndex = 0;
 let intervalId;
@@ -14,7 +16,11 @@ let history = [];
 let queue = [];
 
 function clearActive() {
-  document.querySelectorAll('.node.active').forEach((el) => el.classList.remove('active'));
+  document.querySelectorAll('.node.active, .node.processing').forEach((el) => {
+    el.classList.remove('active');
+    el.classList.remove('processing');
+  });
+  pulseDot.style.opacity = 0;
 }
 
 function renderHistory() {
@@ -31,7 +37,7 @@ function renderHistory() {
 
 function renderQueue() {
   queueList.innerHTML = queue.map((item) => `
-    <div class="queue-entry">
+    <div class="queue-entry pending">
       <strong>${item.input}</strong>
       <div class="meta"><span class="tag">pending</span></div>
     </div>
@@ -56,13 +62,29 @@ function artifactLabel(item) {
   return 'routing note';
 }
 
-function renderActive(item, title = 'Active Scenario') {
-  clearActive();
-  (item.route || []).forEach((nodeId) => {
-    const node = document.querySelector(`[data-node="${nodeId}"]`);
-    if (node) node.classList.add('active');
-  });
+function movePulseToNode(node) {
+  if (!node) return;
+  const wrapRect = topologyWrap.getBoundingClientRect();
+  const rect = node.getBoundingClientRect();
+  pulseDot.style.left = `${rect.left - wrapRect.left + rect.width / 2 - 6}px`;
+  pulseDot.style.top = `${rect.top - wrapRect.top + rect.height / 2 - 6}px`;
+  pulseDot.style.opacity = 1;
+}
 
+async function animateRoute(route) {
+  clearActive();
+  for (const nodeId of route || []) {
+    const node = document.querySelector(`[data-node="${nodeId}"]`);
+    if (!node) continue;
+    node.classList.add('active');
+    node.classList.add('processing');
+    movePulseToNode(node);
+    await new Promise((resolve) => setTimeout(resolve, 520));
+    node.classList.remove('processing');
+  }
+}
+
+async function renderActive(item, title = 'Active Scenario') {
   currentCase.innerHTML = `
     <h2>${title}</h2>
     <p>${item.input}</p>
@@ -77,6 +99,7 @@ function renderActive(item, title = 'Active Scenario') {
   `;
 
   renderArtifacts(item);
+  await animateRoute(item.route || []);
 }
 
 function startPlayback() {
@@ -86,7 +109,7 @@ function startPlayback() {
   intervalId = setInterval(() => {
     activeIndex = (activeIndex + 1) % cases.length;
     renderActive(cases[activeIndex]);
-  }, 2600);
+  }, 3200);
 }
 
 async function load() {
@@ -125,6 +148,8 @@ async function classifyManualRequest() {
   queue = queue.slice(0, 8);
   renderQueue();
 
+  await new Promise((resolve) => setTimeout(resolve, 450));
+
   const res = await fetch('/api/classify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -138,7 +163,7 @@ async function classifyManualRequest() {
   renderQueue();
   renderHistory();
   if (intervalId) clearInterval(intervalId);
-  renderActive(item, 'Manual Request');
+  await renderActive(item, 'Manual Request');
 }
 
 refreshBtn.addEventListener('click', load);
