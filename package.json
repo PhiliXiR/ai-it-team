@@ -7,7 +7,8 @@
     "route": "node runtime/router/classify-request.js",
     "test:router": "node tests/test-router.js",
     "dashboard": "node dashboard/server.js",
-    "api": "node api/server.js"
+    "api": "node api/server.js",
+    "api:python": "python -m uvicorn backend.main:app --host 127.0.0.1 --port 4413"
   },
   "dependencies": {
     "express": "^4.21.2"
