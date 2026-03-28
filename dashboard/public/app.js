@@ -5,6 +5,7 @@ const currentCase = document.getElementById('currentCase');
 const historyList = document.getElementById('historyList');
 const queueList = document.getElementById('queueList');
 const approvalsList = document.getElementById('approvalsList');
+const agentStatusList = document.getElementById('agentStatusList');
 const artifactPanel = document.getElementById('artifactPanel');
 const traceDetail = document.getElementById('traceDetail');
 const pulseDot = document.getElementById('pulseDot');
@@ -61,6 +62,22 @@ function renderApprovals() {
       </div>
     </div>
   `).join('') : '<p>No pending approvals.</p>';
+}
+
+function renderAgentStatus() {
+  const counts = new Map();
+  for (const item of cases) {
+    const key = item.actualOwner || 'unassigned';
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  agentStatusList.innerHTML = [...counts.entries()].map(([agent, count]) => `
+    <div class="history-entry">
+      <strong>${agent}</strong>
+      <div class="meta">
+        <span class="tag">active requests: ${count}</span>
+      </div>
+    </div>
+  `).join('');
 }
 
 function renderArtifacts(item) {
@@ -142,6 +159,7 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
   renderHistory();
   renderQueue();
   renderApprovals();
+  renderAgentStatus();
 
   summary.innerHTML = `
     <div class="summary-card"><div class="label">Requests</div><div class="value">${data.summary.totalRequests}</div></div>
