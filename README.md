@@ -1,98 +1,69 @@
 # ai-it-team
 
-A public prototype for modeling how an AI-assisted IT organization could route, escalate, document, and visualize operational work.
+An exploration of how AI agents might assist parts of IT support and service workflows.
 
 ## What this is
 
-`ai-it-team` is a public exploration of an **AI-assisted IT operating model**.
+`ai-it-team` is an educational experiment.
 
-Instead of treating IT work as a single general-purpose assistant problem, this project breaks common operations work into explicit roles, workflows, approvals, escalation paths, and outputs. The goal is to make the operating model visible and testable instead of leaving it as vague agent hype.
+The point of the project is to explore how agentic or AI-assisted systems might help with things like:
 
-This repo currently combines:
+- request routing
+- ownership and handoffs
+- approval-aware workflows
+- traceability
+- artifacts and summaries
+- visible operational state
 
-- org and workflow design
-- role-based agent specs
-- request routing prototypes
-- scenario tests
-- a local dashboard
-- an early API/runtime spine for request, trace, artifact, and approval state
+This is not being treated as a finished product or startup.
+It is a sandbox for thinking through how AI might fit into IT support and service operations in a more structured way.
 
-## Why this project exists
+## What this project is currently exploring
 
-A lot of AI agent demos skip the hard parts of operational work:
+Right now the main questions are:
 
-- ownership
-- escalation
-- approval boundaries
-- auditability
-- domain separation
-- artifact generation
-- observability
+- what is the right unit of work for an AI-assisted IT workflow?
+- where should routing be rule-based versus AI-assisted?
+- what state should be explicit and inspectable?
+- what should require approval or human override?
+- what should be visible in a runtime or dashboard view?
+- how do role boundaries help keep agent behavior legible?
 
-`ai-it-team` focuses on those constraints first.
+## What exists right now
 
-It asks: **what would it take to model an IT team as a structured, inspectable, multi-agent operating system?**
+The project currently includes:
 
-## What it demonstrates
-
-This repository demonstrates how to translate real-world IT / operations concepts into a public-safe prototype:
-
-- support triage
-- access request routing
-- incident handling
-- infrastructure change ownership
-- escalation modeling
-- approval-aware operating boundaries
-- workflow artifacts and outputs
-- observable request flow via a local dashboard
-
-## Current implementation
-
-Implemented now:
-
-- public-safe IT org model and team structure
-- documented workflows for support, incidents, access, change, and documentation
-- role definitions and workflow-role mapping
-- escalation, handoff, and approval model docs
-- MVP and next-wave agent specs
-- normalized runtime prompts
+- public-safe IT org and workflow docs
+- role definitions and agent specs
 - a prototype request router
-- router test corpus and test harness
+- a request test corpus and router test harness
 - a local dashboard with visual and inspection modes
-- an early API/runtime spine for request state, traces, artifacts, approvals, and live updates
-- a controlled access-request workflow slice
-
-## What is simulated vs real
-
-### Simulated right now
-
-- routing is still prototype-grade and intentionally simple
-- backend systems are represented visually, not integrated
-- runtime data is still seeded from local scenarios for demoability
-- the dashboard is still a local prototype surface, not a production operations console
-
-### Real right now
-
-- the operating model and boundaries are explicit
-- workflows and role definitions are concrete
-- routing behavior is testable
-- request, trace, artifact, and approval state exist in runtime form
-- request status changes can be visualized and inspected
-- the prototype can be run locally and demonstrated visually
+- an early API/runtime spine
+- request, trace, artifact, and approval objects
+- one controlled access-request workflow slice
 
 ## What this is not
 
 This repository is **not** claiming:
 
-- autonomous production IT management
+- production-ready IT automation
+- autonomous IT operations
 - live control over real infrastructure
-- production-ready service desk automation
-- replacement for human operators
+- a fully fledged product
 
-The goal is not to oversell autonomy.
-The goal is to prototype a more realistic, observable, and bounded approach to AI-assisted operations.
+It is better understood as a lab project / public prototype / learning vehicle.
 
-## Run the prototype
+## Current learning value
+
+This project is helping explore:
+
+- how agent systems differ from one-off model calls
+- how routing, ownership, and handoffs might work
+- where approvals and auditability become important
+- what makes a workflow feel inspectable instead of magical
+- how much of the system is really the model versus the control layer around it
+
+## How to run it
 
 ### Dashboard
 
@@ -131,32 +102,48 @@ npm run test:router
 6. Show selected request details, trace timeline, and approval state
 7. Explain what is implemented today versus what remains simulated
 
-## Project structure
+## Current reality
 
-- `docs/` — vision, workflows, boundaries, evaluation, system design notes, and phase summaries
+### Implemented now
+
+- role and workflow structure
+- prototype routing
+- local tests
+- runtime-backed request state
+- trace, artifact, and approval records
+- local dashboard and inspection view
+- one controlled workflow slice
+
+### Still simulated
+
+- routing is still intentionally simple
+- backend systems are represented, not integrated
+- runtime state is still seeded from local scenarios for demoability
+- broader workflow coverage is incomplete
+- this is not yet a real deployed operational system
+
+## Current project structure
+
+- `docs/` — design notes, workflow docs, and experiment framing
 - `api/` — early runtime spine for request state, traces, artifacts, approvals, and workflow endpoints
-- `agents/` — agent role specs
-- `runtime/` — prompt and router prototype layer
+- `agents/` — role specs
+- `runtime/` — router and prompt prototype layer
 - `tests/` — request corpus and router tests
-- `dashboard/` — local visualization layer
+- `dashboard/` — local visualization and inspection layer
 
-## Design principles
+## Next experiments
 
-- structure beats prompt soup
-- agents need role boundaries
-- ops work needs approvals and auditability
-- public examples should stay environment-neutral
-- practical workflows matter more than abstract hype
-- visible execution is more useful than invisible magic
+The next useful experiments are likely to be small and focused, for example:
 
-## Who this may be useful for
-
-- IT operations and support professionals
-- platform and internal tooling teams
-- people exploring agent orchestration for operational work
-- anyone interested in modeling operational workflows in a more structured and observable way
+- refine request schema and routing clarity
+- test one additional workflow slice
+- test what a live intake bot should actually ask
 
 ## Status
 
-Current phase complete as a strong prototype iteration.
-See `docs/current-state.md` for a cleaner phase summary and recommended next directions.
+Good stopping point for the current experiment phase.
+
+See:
+
+- `docs/current-state.md`
+- `docs/minimal-experiment-plan.md`
