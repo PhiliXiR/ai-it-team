@@ -1,19 +1,26 @@
-# Roles
+# Role Roster
 
-## Role catalog overview
+This directory contains the role definitions for the proposed `ai-it-team` structure.
 
-The role roster now lives in `docs/roles/`.
+## Intended use
 
-This file remains a high-level index.
+Each role should eventually define:
 
-## Leadership
+- purpose
+- responsibilities
+- boundaries
+- expected inputs
+- expected outputs
+- escalation targets
 
+## Role groups
+
+### Leadership
 - ops-director
 - security-director
 - infrastructure-director
 
-## Domain leads
-
+### Domain leads
 - helpdesk-lead
 - systems-lead
 - network-lead
@@ -22,8 +29,7 @@ This file remains a high-level index.
 - incident-lead
 - documentation-lead
 
-## Specialists
-
+### Specialists
 - endpoint-tech
 - windows-admin
 - linux-admin
@@ -39,12 +45,3 @@ This file remains a high-level index.
 - incident-triage-specialist
 - runbook-writer
 - change-log-specialist
-
-## Next step
-
-A future pass should add a more formal matrix showing:
-
-- role -> responsibilities
-- role -> approvals needed
-- role -> escalation targets
-- role -> workflow participation
