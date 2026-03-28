@@ -42,7 +42,13 @@ function buildRoute(result) {
 }
 
 function isSeeded() {
-  return fs.existsSync(seedStatePath);
+  if (!fs.existsSync(seedStatePath)) return false;
+  try {
+    const state = JSON.parse(fs.readFileSync(seedStatePath, 'utf8'));
+    return Boolean(state.seeded);
+  } catch {
+    return false;
+  }
 }
 
 function markSeeded() {
