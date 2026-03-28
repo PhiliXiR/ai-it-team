@@ -41,9 +41,14 @@
       <section class="focus-hero card">
         <div class="focus-copy" id="currentCase"></div>
         <div class="flow-stage-panel">
-          <h2>Current Flow</h2>
+          <h2>Current Workflow</h2>
           <div id="flowPipeline" class="flow-pipeline"></div>
         </div>
+      </section>
+
+      <section class="grid-2">
+        <section class="card" id="ticketStatePanel"></section>
+        <section class="card" id="workflowActivityPanel"></section>
       </section>
 
       <section class="topology-wrap" id="topologyWrap">
@@ -68,14 +73,14 @@
           <div class="node" data-node="security-director">Security Director</div>
         </div>
         <div class="column">
-          <h2>Queue</h2>
+          <h2>Request Queue</h2>
           <div id="queueList"></div>
         </div>
       </section>
 
       <section class="selector-panel card">
-        <h2>Request Queue</h2>
-        <p class="muted">Select a request to change the current focus.</p>
+        <h2>Request Selector</h2>
+        <p class="muted">Choose which request should become the current focus.</p>
         <div id="results"></div>
       </section>
     </div>
@@ -113,7 +118,7 @@
           </section>
 
           <section class="inspector-section">
-            <h2>Agent Activity</h2>
+            <h2>Who’s Involved</h2>
             <div id="agentStatusList"></div>
           </section>
 

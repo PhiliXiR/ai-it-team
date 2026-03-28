@@ -12,6 +12,8 @@ const visualModeView = document.getElementById('visualModeView');
 const inspectionModeView = document.getElementById('inspectionModeView');
 const currentCase = document.getElementById('currentCase');
 const flowPipeline = document.getElementById('flowPipeline');
+const ticketStatePanel = document.getElementById('ticketStatePanel');
+const workflowActivityPanel = document.getElementById('workflowActivityPanel');
 const historyList = document.getElementById('historyList');
 const queueList = document.getElementById('queueList');
 const approvalsList = document.getElementById('approvalsList');
@@ -28,7 +30,6 @@ let approvals = [];
 let activeIndex = 0;
 let intervalId;
 let history = [];
-let queue = [];
 let currentMode = 'visual';
 let selectedRequestId = null;
 let playbackPaused = false;
@@ -53,20 +54,42 @@ function clearActive() {
   pulseDot.style.opacity = 0;
 }
 
-function buildFlowStages(item) {
-  const route = item?.route || [];
-  return route.map((step, index) => {
-    const state = index < route.length - 1 ? (index === route.length - 1 ? 'current' : 'completed') : 'current';
-    return { id: step, label: step.replaceAll('-', ' '), state };
-  });
+function workflowModel(item) {
+  const systemNode = item.actualClassification === 'support-issue'
+    ? 'VPN System'
+    : item.actualClassification === 'access-request'
+      ? 'Identity Provider'
+      : item.actualClassification === 'incident'
+        ? 'Internal App'
+        : 'Target System';
+
+  const ownerNode = item.actualOwner ? item.actualOwner.replaceAll('-', ' ') : 'Owner';
+  const approvalNode = item.status === 'awaiting-approval' ? 'Approval Gate' : null;
+  const artifactNode = item.artifact?.type ? item.artifact.type.replaceAll('-', ' ') : 'Artifact';
+
+  const stages = [
+    'Request Queue',
+    'Helpdesk Lead',
+    ownerNode,
+    approvalNode,
+    systemNode,
+    artifactNode
+  ].filter(Boolean);
+
+  let currentIndex = 2;
+  if (item.status === 'awaiting-approval' && approvalNode) currentIndex = stages.indexOf('Approval Gate');
+  else if (item.status === 'blocked') currentIndex = approvalNode ? stages.indexOf('Approval Gate') : 2;
+  else if (item.status === 'in-progress') currentIndex = stages.indexOf(systemNode);
+  else if (item.status === 'classified') currentIndex = 2;
+
+  return { stages, currentIndex, systemNode, approvalNode, artifactNode };
 }
 
 function renderFlow(item) {
-  const route = item?.route || [];
-  const currentIndex = route.length ? route.length - 1 : -1;
-  flowPipeline.innerHTML = route.map((step, index) => {
+  const { stages, currentIndex } = workflowModel(item);
+  flowPipeline.innerHTML = stages.map((step, index) => {
     const state = index < currentIndex ? 'completed' : index === currentIndex ? 'current' : 'upcoming';
-    return `${index > 0 ? '<span class="flow-arrow">→</span>' : ''}<div class="flow-step ${state}">${step.replaceAll('-', ' ')}</div>`;
+    return `${index > 0 ? '<span class="flow-arrow">→</span>' : ''}<div class="flow-step ${state}">${step}</div>`;
   }).join('');
 }
 
@@ -84,7 +107,7 @@ function renderHistory() {
 
 function renderQueue() {
   queueList.innerHTML = cases.map((item) => `
-    <div class="queue-entry">
+    <div class="queue-entry request-card" data-request-id="${item.id}">
       <strong>${item.input}</strong>
       <div class="meta">
         <span class="tag ${statusTag(item.status)}">${item.status}</span>
@@ -114,30 +137,88 @@ function renderApprovals() {
 }
 
 function renderAgentStatus() {
-  const counts = new Map();
-  for (const item of cases) {
-    const key = item.actualOwner || 'unassigned';
-    counts.set(key, (counts.get(key) || 0) + 1);
+  const selected = cases.find((item) => item.id === selectedRequestId);
+  if (!selected) {
+    agentStatusList.innerHTML = '<p>No request selected.</p>';
+    return;
   }
-  agentStatusList.innerHTML = [...counts.entries()].map(([agent, count]) => `
+  const recent = selected.trace?.slice(-3) || [];
+  agentStatusList.innerHTML = `
     <div class="history-entry">
-      <strong>${agent}</strong>
-      <div class="meta">
-        <span class="tag">active requests: ${count}</span>
-      </div>
+      <strong>Current Owner</strong>
+      <div class="meta"><span class="tag">${selected.actualOwner}</span></div>
     </div>
-  `).join('');
+    ${recent.map((entry) => `
+      <div class="history-entry">
+        <strong>${entry.type}</strong>
+        <div class="meta"><span class="tag">${entry.actor}</span></div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function renderVisualState(item) {
+  if (!item) {
+    currentCase.innerHTML = 'No active request selected.';
+    ticketStatePanel.innerHTML = 'No current ticket state.';
+    workflowActivityPanel.innerHTML = 'No workflow activity.';
+    flowPipeline.innerHTML = '';
+    return;
+  }
+
+  const nextStep = item.status === 'awaiting-approval'
+    ? 'Approval decision required before work continues.'
+    : item.status === 'blocked'
+      ? 'Human intervention needed to unblock this request.'
+      : item.status === 'in-progress'
+        ? 'Current owner continues work toward the target system or output.'
+        : 'Routing and ownership have been established.';
+
+  currentCase.innerHTML = `
+    <h2>Current Focus</h2>
+    <div class="focus-title">${item.input}</div>
+    <p class="muted">This is the active request being traced through the workflow right now.</p>
+    <div class="meta">
+      <span class="tag">owner: ${item.actualOwner}</span>
+      <span class="tag ${statusTag(item.status)}">${item.status}</span>
+      <span class="tag">class: ${item.actualClassification}</span>
+    </div>
+  `;
+
+  ticketStatePanel.innerHTML = `
+    <h2>Current Ticket State</h2>
+    <div class="detail-grid">
+      <div class="detail-box"><div class="label">Current Status</div><div>${item.status}</div></div>
+      <div class="detail-box"><div class="label">Current Owner</div><div>${item.actualOwner}</div></div>
+      <div class="detail-box"><div class="label">Current Step</div><div>${workflowModel(item).stages[workflowModel(item).currentIndex]}</div></div>
+      <div class="detail-box"><div class="label">Next Step</div><div>${nextStep}</div></div>
+    </div>
+  `;
+
+  workflowActivityPanel.innerHTML = `
+    <h2>Workflow Activity</h2>
+    <div class="history-entry">
+      <strong>Now</strong>
+      <div class="meta"><span class="tag">${item.actualOwner}</span><span class="tag ${statusTag(item.status)}">${item.status}</span></div>
+    </div>
+    ${(item.trace || []).slice(-3).map((entry) => `
+      <div class="history-entry">
+        <strong>${entry.type}</strong>
+        <div class="meta"><span class="tag">actor: ${entry.actor}</span></div>
+      </div>
+    `).join('')}
+  `;
+
+  renderFlow(item);
 }
 
 function renderInspector(item) {
   if (!item) {
-    currentCase.innerHTML = 'No active request selected.';
     requestSummary.innerHTML = 'Select a request to inspect workflow detail.';
     workflowState.innerHTML = 'No workflow state selected.';
     traceDetail.innerHTML = 'No trace events available.';
     artifactSummary.innerHTML = 'No artifact selected.';
     dataObjectsPanel.innerHTML = 'Select a request to inspect the underlying objects.';
-    flowPipeline.innerHTML = '';
     return;
   }
 
@@ -148,22 +229,6 @@ function renderInspector(item) {
     : item.status === 'blocked'
       ? 'Blocked until a human changes or reopens the request.'
       : 'Continue normal workflow progression under the current owner.';
-
-  currentCase.innerHTML = `
-    <h2>Current Focus</h2>
-    <div class="focus-title">${item.input}</div>
-    <p class="muted">Watch this request move through the workflow. The highlighted stage shows where it is now.</p>
-    <div class="meta">
-      <span class="tag">owner: ${item.actualOwner}</span>
-      <span class="tag ${statusTag(item.status)}">${item.status}</span>
-      <span class="tag">class: ${item.actualClassification}</span>
-    </div>
-    <div class="meta">
-      <span class="tag">next: ${nextStep}</span>
-    </div>
-  `;
-
-  renderFlow(item);
 
   requestSummary.innerHTML = `
     <p>${item.input}</p>
@@ -261,11 +326,10 @@ async function animateRoute(route) {
 
 async function renderActive(item) {
   selectedRequestId = item.id;
+  renderVisualState(item);
   renderInspector(item);
   renderApprovals();
-  queue = [{ input: item.input }];
   await animateRoute(item.route || []);
-  queue = [];
   const alreadySeen = history.some((entry) => entry.id === item.id);
   if (!alreadySeen) {
     history = [item, ...history].slice(0, 8);
@@ -323,6 +387,7 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
   inspectorRequestList.innerHTML = cardsHtml;
 
   const selected = cases.find((item) => item.id === selectedRequestId) || cases[0] || null;
+  renderVisualState(selected);
   renderInspector(selected);
   renderApprovals();
   renderRuntimeStrip(data);
