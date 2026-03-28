@@ -269,10 +269,15 @@ function renderPhaseTimeline(item, cursor) {
     <div class="phase-timeline">
       ${timeline.map((entry, index) => {
         const state = stageState(index, cursor);
+        const detail = state === 'completed'
+          ? `${entry.message} Finished.`
+          : state === 'current'
+            ? entry.message
+            : `Up next: ${entry.message}`;
         return `
           <div class="phase-entry ${state}">
             <div class="phase-entry-title">${entry.label}</div>
-            <div class="phase-entry-meta">${state === 'completed' ? 'Completed in playback.' : state === 'current' ? entry.message : 'Waiting for this step to begin.'}</div>
+            <div class="phase-entry-meta">${detail}</div>
           </div>
         `;
       }).join('')}
@@ -308,10 +313,10 @@ function renderExecutionTrace(item, cursor) {
       ${timeline.map((step, index) => {
         const state = completedCount < 0 ? 'upcoming' : index < completedCount ? 'completed' : index === completedCount ? 'current' : 'upcoming';
         const detail = state === 'completed'
-          ? `${step.message} Completed in playback.`
+          ? `${step.message} Finished.`
           : state === 'current'
-            ? `${step.message} Active now.`
-            : `${step.message} Waiting.`;
+            ? `${step.message}`
+            : `Next execution step: ${step.message}`;
         return `
           <div class="execution-entry ${state}">
             <div class="execution-entry-title">${step.label}</div>
