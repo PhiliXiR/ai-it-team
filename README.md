@@ -40,6 +40,7 @@ The project currently includes:
 - a local dashboard with visual and inspection modes
 - an early API/runtime spine
 - request, trace, artifact, and approval objects
+- the beginnings of a human-facing Request Inspector view in dashboard inspection mode
 - one controlled access-request workflow slice
 
 ## What this is not
