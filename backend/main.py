@@ -6,8 +6,8 @@ from typing import Any, Dict, Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from store import read_db, write_db, make_id
-from router_logic import classify_input
+from .store import read_db, write_db, make_id
+from .router_logic import classify_input
 
 app = FastAPI(title='ai-it-team python api')
 

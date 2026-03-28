@@ -6,22 +6,14 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, '..');
-const dbPath = path.join(root, 'api', 'storage', 'db.json');
 const seedStatePath = path.join(root, 'dashboard', '.seed-state.json');
 const app = express();
 const PORT = process.env.PORT || 4411;
+const PYTHON_API_BASE = process.env.PYTHON_API_BASE || 'http://127.0.0.1:4413';
 const clients = new Set();
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
-
-function readDb() {
-  return JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-}
-
-function writeDb(data) {
-  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
-}
 
 function sendEvent(type, payload) {
   const message = `event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`;
@@ -55,206 +47,127 @@ function markSeeded() {
   fs.writeFileSync(seedStatePath, JSON.stringify({ seeded: true }, null, 2));
 }
 
-function seedFromTestsIfNeeded() {
+async function api(pathname, options = {}) {
+  const res = await fetch(`${PYTHON_API_BASE}${pathname}`, {
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    ...options
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Python API ${pathname} failed: ${res.status} ${text}`);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+async function seedFromTestsIfNeeded() {
   if (isSeeded()) return;
 
   const cases = JSON.parse(fs.readFileSync(path.join(root, 'tests', 'request-cases.json'), 'utf8'));
-  const nextDb = { requests: [], traces: [], artifacts: [], approvals: [] };
-
   for (const testCase of cases) {
-    const id = `req_${Math.random().toString(36).slice(2, 10)}`;
-    const request = {
-      id,
-      source: 'test-corpus',
-      input: testCase.input,
-      status: 'classified',
-      classification: testCase.expectedClassification,
-      owner: testCase.expectedOwner,
-      escalation: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    nextDb.requests.push(request);
-    nextDb.traces.push({
-      id: `evt_${Math.random().toString(36).slice(2, 10)}`,
-      requestId: id,
-      type: 'request.created',
-      actor: 'seed',
-      timestamp: new Date().toISOString(),
-      data: { source: 'test-corpus' }
+    const request = await api('/api/requests', {
+      method: 'POST',
+      body: JSON.stringify({ input: testCase.input, source: 'test-corpus' })
     });
-    nextDb.traces.push({
-      id: `evt_${Math.random().toString(36).slice(2, 10)}`,
-      requestId: id,
-      type: 'request.classified',
-      actor: 'seed',
-      timestamp: new Date().toISOString(),
-      data: {
-        classification: testCase.expectedClassification,
-        owner: testCase.expectedOwner
-      }
-    });
-    nextDb.artifacts.push({
-      id: `art_${Math.random().toString(36).slice(2, 10)}`,
-      requestId: id,
-      type: `${testCase.expectedClassification}-summary`,
-      owner: testCase.expectedOwner,
-      content: {
-        summary: testCase.input,
-        classification: testCase.expectedClassification,
-        owner: testCase.expectedOwner
-      },
-      createdAt: new Date().toISOString()
-    });
+    await api(`/api/requests/${request.id}/route`, { method: 'POST' });
   }
 
-  const accessRequest = nextDb.requests.find((item) => item.classification === 'access-request');
+  const requests = await api('/api/requests');
+  const accessRequest = requests.find((item) => item.classification === 'access-request');
   if (accessRequest) {
-    accessRequest.status = 'awaiting-approval';
-    accessRequest.owner = 'iam-lead';
-    const approvalId = `appr_${Math.random().toString(36).slice(2, 10)}`;
-    nextDb.approvals.push({
-      id: approvalId,
-      requestId: accessRequest.id,
-      type: 'privileged-access',
-      requestedBy: 'iam-lead',
-      requiredApproverRole: 'security-director',
-      reason: 'Privileged or incompletely approved access requires additional review.',
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      resolvedAt: null
-    });
-    nextDb.traces.push({
-      id: `evt_${Math.random().toString(36).slice(2, 10)}`,
-      requestId: accessRequest.id,
-      type: 'approval.created',
-      actor: 'seed',
-      timestamp: new Date().toISOString(),
-      data: { approvalId }
-    });
-    nextDb.artifacts.push({
-      id: `art_${Math.random().toString(36).slice(2, 10)}`,
-      requestId: accessRequest.id,
-      type: 'access-review-note',
-      owner: 'iam-lead',
-      content: {
-        summary: 'Access request requires approval before implementation.',
-        approvalNeeded: true
-      },
-      createdAt: new Date().toISOString()
-    });
+    await api(`/api/requests/${accessRequest.id}/access-review`, { method: 'POST' });
   }
 
-  writeDb(nextDb);
   markSeeded();
 }
 
-function buildRuntimePayload() {
-  seedFromTestsIfNeeded();
-  const db = readDb();
-  const requests = db.requests.map((item) => ({
-    ...item,
-    actualClassification: item.classification,
-    actualOwner: item.owner,
-    route: buildRoute(item),
-    artifact: db.artifacts.find((artifact) => artifact.requestId === item.id) || null,
-    traceCount: db.traces.filter((trace) => trace.requestId === item.id).length,
-    approvals: db.approvals.filter((approval) => approval.requestId === item.id),
-    trace: db.traces.filter((trace) => trace.requestId === item.id)
+async function buildRuntimePayload() {
+  await seedFromTestsIfNeeded();
+  const [requests, approvals, summary] = await Promise.all([
+    api('/api/requests'),
+    api('/api/approvals'),
+    api('/api/dashboard/summary')
+  ]);
+
+  const enriched = await Promise.all(requests.map(async (item) => {
+    const [trace, artifacts, requestApprovals] = await Promise.all([
+      api(`/api/requests/${item.id}/trace`),
+      api(`/api/requests/${item.id}/artifacts`),
+      api(`/api/requests/${item.id}/approvals`)
+    ]);
+    return {
+      ...item,
+      actualClassification: item.classification,
+      actualOwner: item.owner,
+      route: buildRoute(item),
+      artifact: artifacts[0] || null,
+      traceCount: trace.length,
+      approvals: requestApprovals,
+      trace
+    };
   }));
 
   return {
     summary: {
-      totalRequests: requests.length,
-      classifiedRequests: requests.filter((item) => item.classification).length,
-      totalArtifacts: db.artifacts.length,
-      awaitingApproval: db.approvals.filter((item) => item.status === 'pending').length
+      totalRequests: summary.totalRequests,
+      classifiedRequests: summary.classifiedRequests,
+      totalArtifacts: summary.totalArtifacts,
+      awaitingApproval: summary.awaitingApproval
     },
-    approvals: db.approvals,
-    requests: [...requests].reverse()
+    approvals,
+    requests: [...enriched].reverse()
   };
 }
 
-app.get('/api/runtime', (_req, res) => {
-  res.json(buildRuntimePayload());
+app.get('/api/runtime', async (_req, res) => {
+  try {
+    res.json(await buildRuntimePayload());
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
 });
 
-app.get('/api/events/stream', (req, res) => {
+app.get('/api/events/stream', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders?.();
 
   clients.add(res);
-  res.write(`event: snapshot\ndata: ${JSON.stringify(buildRuntimePayload())}\n\n`);
+  res.write(`event: snapshot\ndata: ${JSON.stringify(await buildRuntimePayload())}\n\n`);
 
   req.on('close', () => {
     clients.delete(res);
   });
 });
 
-app.post('/api/runtime/reset-from-tests', (_req, res) => {
+app.post('/api/runtime/reset-from-tests', async (_req, res) => {
   if (fs.existsSync(seedStatePath)) fs.unlinkSync(seedStatePath);
-  seedFromTestsIfNeeded();
-  const payload = buildRuntimePayload();
+  const payload = await buildRuntimePayload();
   sendEvent('runtime.reset', payload);
   res.json({ ok: true });
 });
 
-app.post('/api/runtime/approvals/:id/approve', (req, res) => {
-  const db = readDb();
-  const approval = db.approvals.find((item) => item.id === req.params.id);
-  if (!approval) return res.status(404).json({ error: 'Approval not found' });
-  approval.status = 'approved';
-  approval.resolvedAt = new Date().toISOString();
-
-  const request = db.requests.find((item) => item.id === approval.requestId);
-  if (request) {
-    request.status = 'in-progress';
-    request.owner = 'iam-specialist';
-    request.updatedAt = new Date().toISOString();
-    db.traces.push({
-      id: `evt_${Math.random().toString(36).slice(2, 10)}`,
-      requestId: request.id,
-      type: 'approval.approved',
-      actor: 'dashboard',
-      timestamp: new Date().toISOString(),
-      data: { approvalId: approval.id }
-    });
+app.post('/api/runtime/approvals/:id/approve', async (req, res) => {
+  try {
+    await api(`/api/approvals/${req.params.id}/approve`, { method: 'POST', body: JSON.stringify({ actor: 'dashboard' }) });
+    const payload = await buildRuntimePayload();
+    sendEvent('approval.updated', payload);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
   }
-
-  writeDb(db);
-  const payload = buildRuntimePayload();
-  sendEvent('approval.updated', payload);
-  res.json({ ok: true });
 });
 
-app.post('/api/runtime/approvals/:id/reject', (req, res) => {
-  const db = readDb();
-  const approval = db.approvals.find((item) => item.id === req.params.id);
-  if (!approval) return res.status(404).json({ error: 'Approval not found' });
-  approval.status = 'rejected';
-  approval.resolvedAt = new Date().toISOString();
-
-  const request = db.requests.find((item) => item.id === approval.requestId);
-  if (request) {
-    request.status = 'blocked';
-    request.updatedAt = new Date().toISOString();
-    db.traces.push({
-      id: `evt_${Math.random().toString(36).slice(2, 10)}`,
-      requestId: request.id,
-      type: 'approval.rejected',
-      actor: 'dashboard',
-      timestamp: new Date().toISOString(),
-      data: { approvalId: approval.id }
-    });
+app.post('/api/runtime/approvals/:id/reject', async (req, res) => {
+  try {
+    await api(`/api/approvals/${req.params.id}/reject`, { method: 'POST', body: JSON.stringify({ actor: 'dashboard' }) });
+    const payload = await buildRuntimePayload();
+    sendEvent('approval.updated', payload);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
   }
-
-  writeDb(db);
-  const payload = buildRuntimePayload();
-  sendEvent('approval.updated', payload);
-  res.json({ ok: true });
 });
 
 app.listen(PORT, () => {
