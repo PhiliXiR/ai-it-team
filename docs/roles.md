@@ -1,59 +1,87 @@
 # Roles
 
-## Example role definitions
+## Role catalog overview
 
-### helpdesk-lead
+This file is currently an overview, not the final role roster.
+The eventual project should likely split role definitions into a `docs/roles/` directory.
 
-Owns initial request classification and routing.
+## Leadership roles
 
-Responsibilities:
-
-- classify incoming issues
-- determine whether a request is support, infra, identity, security, or incident-related
-- gather missing context
-- hand off to the right domain lead
-
-### systems-lead
-
-Owns workstation/server systems questions.
+### ops-director
 
 Responsibilities:
 
-- coordinate endpoint, Windows, Linux, and patching work
-- decide whether a request is routine or change-controlled
-- escalate risky production actions
-
-### network-lead
-
-Owns network-related diagnosis and coordination.
-
-Responsibilities:
-
-- route VPN, firewall, DNS, routing, and connectivity issues
-- identify likely fault domain
-- separate user symptoms from network root cause hypotheses
+- maintain overall operational coherence
+- coordinate cross-domain work
+- determine when work should pause for human review
 
 ### security-director
 
-Acts as a safety and risk gate.
+Responsibilities:
+
+- review risky or policy-sensitive actions
+- identify where convenience conflicts with security posture
+- veto unsafe recommendations
+
+### infrastructure-director
 
 Responsibilities:
 
-- review sensitive or risky changes
-- distinguish operational convenience from acceptable security posture
-- veto actions that violate constraints or policy
+- oversee systems/cloud/network coherence
+- assess platform-level impact
+- arbitrate larger implementation plans
+
+## Domain leads
+
+### helpdesk-lead
+
+Responsibilities:
+
+- own intake classification and routing
+- distinguish support issues from infra, IAM, or incident problems
+- gather missing context before escalation
+
+### systems-lead
+
+Responsibilities:
+
+- coordinate Windows, Linux, endpoint, patching, and core admin work
+- determine when changes need stronger review
+
+### network-lead
+
+Responsibilities:
+
+- own connectivity, VPN, DNS, firewall, and routing-related diagnosis
+- identify likely fault domains and escalation needs
+
+### iam-lead
+
+Responsibilities:
+
+- own access and permission workflows
+- determine approval requirements for identity-related changes
+
+### incident-lead
+
+Responsibilities:
+
+- coordinate outage or degradation response
+- keep timeline and ownership coherent
 
 ### documentation-lead
 
-Owns knowledge preservation.
-
 Responsibilities:
 
-- turn outcomes into runbooks
-- record decisions and changes
-- keep recurring workflows understandable
+- ensure important workflows, decisions, and outcomes are recorded
+- turn recurring operations into understandable runbooks
 
 ## Notes
 
-These are placeholders, not finalized prompts.
-The public repo should define roles clearly before trying to over-specify agent behavior.
+The next step for this file is to expand it into a structured role roster with:
+
+- responsibilities
+- authority boundaries
+- expected inputs
+- expected outputs
+- escalation targets
