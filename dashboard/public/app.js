@@ -2,6 +2,9 @@ const summary = document.getElementById('summary');
 const results = document.getElementById('results');
 const runtimeStrip = document.getElementById('runtimeStrip');
 const refreshBtn = document.getElementById('refreshBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const resumeBtn = document.getElementById('resumeBtn');
+const stepBtn = document.getElementById('stepBtn');
 const modeVisualBtn = document.getElementById('modeVisualBtn');
 const modeInspectBtn = document.getElementById('modeInspectBtn');
 const visualModeView = document.getElementById('visualModeView');
@@ -24,6 +27,7 @@ let history = [];
 let queue = [];
 let currentMode = 'visual';
 let selectedRequestId = null;
+let playbackPaused = false;
 
 function statusTag(status) {
   return `status-${status}`;
@@ -65,7 +69,7 @@ function renderQueue() {
         <div>${item.input}</div>
       </div>
     `).join('')
-    : '<p class="muted">Playback queue is idle between request transitions.</p>';
+    : `<p class="muted">Playback is ${playbackPaused ? 'paused' : 'idle'}.</p>`;
 }
 
 function renderApprovals() {
@@ -245,6 +249,7 @@ function renderRuntimeStrip(data) {
   runtimeStrip.innerHTML = `
     <div class="meta">
       <span class="tag">mode: ${currentMode === 'visual' ? 'visual playback' : 'inspection'}</span>
+      <span class="tag">playback: ${playbackPaused ? 'paused' : 'running'}</span>
       <span class="tag">requests: ${data.summary.totalRequests}</span>
       <span class="tag">pending approvals: ${data.summary.awaitingApproval}</span>
       <span class="tag">artifacts: ${data.summary.totalArtifacts}</span>
@@ -288,18 +293,35 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
   highlightSelectedRequest();
 }
 
+async function stepPlayback() {
+  if (!cases.length) return;
+  const item = cases[activeIndex];
+  await renderActive(item);
+  activeIndex = (activeIndex + 1) % cases.length;
+}
+
 function startPlayback() {
   if (intervalId) clearInterval(intervalId);
-  if (!cases.length) return;
+  if (!cases.length || playbackPaused) return;
 
-  const playNext = async () => {
-    const item = cases[activeIndex];
-    await renderActive(item);
-    activeIndex = (activeIndex + 1) % cases.length;
-  };
+  stepPlayback();
+  intervalId = setInterval(() => {
+    if (!playbackPaused) stepPlayback();
+  }, 3600);
+}
 
-  playNext();
-  intervalId = setInterval(playNext, 3600);
+function pausePlayback() {
+  playbackPaused = true;
+  if (intervalId) clearInterval(intervalId);
+  renderQueue();
+  renderRuntimeStrip({ summary: { totalRequests: cases.length, totalArtifacts: cases.filter(Boolean).length, awaitingApproval: approvals.filter((a) => a.status === 'pending').length } });
+}
+
+function resumePlayback() {
+  if (!playbackPaused) return;
+  playbackPaused = false;
+  startPlayback();
+  renderRuntimeStrip({ summary: { totalRequests: cases.length, totalArtifacts: cases.filter(Boolean).length, awaitingApproval: approvals.filter((a) => a.status === 'pending').length } });
 }
 
 async function load({ reset = false } = {}) {
@@ -344,6 +366,7 @@ results.addEventListener('click', (event) => {
   const item = cases.find((entry) => entry.id === card.dataset.requestId);
   if (item) {
     setMode('inspect');
+    pausePlayback();
     renderActive(item);
   }
 });
@@ -355,6 +378,12 @@ modeVisualBtn.addEventListener('click', () => {
 modeInspectBtn.addEventListener('click', () => {
   setMode('inspect');
   renderRuntimeStrip({ summary: { totalRequests: cases.length, totalArtifacts: cases.filter(Boolean).length, awaitingApproval: approvals.filter((a) => a.status === 'pending').length } });
+});
+pauseBtn.addEventListener('click', pausePlayback);
+resumeBtn.addEventListener('click', resumePlayback);
+stepBtn.addEventListener('click', async () => {
+  pausePlayback();
+  await stepPlayback();
 });
 refreshBtn.addEventListener('click', () => load({ reset: true }));
 connectEventStream();
