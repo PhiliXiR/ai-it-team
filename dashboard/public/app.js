@@ -5,10 +5,13 @@ const classifyBtn = document.getElementById('classifyBtn');
 const requestInput = document.getElementById('requestInput');
 const currentCase = document.getElementById('currentCase');
 const historyList = document.getElementById('historyList');
+const queueList = document.getElementById('queueList');
+const artifactPanel = document.getElementById('artifactPanel');
 let cases = [];
 let activeIndex = 0;
 let intervalId;
 let history = [];
+let queue = [];
 
 function clearActive() {
   document.querySelectorAll('.node.active').forEach((el) => el.classList.remove('active'));
@@ -24,6 +27,33 @@ function renderHistory() {
       </div>
     </div>
   `).join('');
+}
+
+function renderQueue() {
+  queueList.innerHTML = queue.map((item) => `
+    <div class="queue-entry">
+      <strong>${item.input}</strong>
+      <div class="meta"><span class="tag">pending</span></div>
+    </div>
+  `).join('');
+}
+
+function renderArtifacts(item) {
+  artifactPanel.innerHTML = `
+    <h2>Generated Artifact</h2>
+    <p><strong>Type:</strong> ${item.actualClassification || item.classification} summary</p>
+    <p><strong>Owner:</strong> ${item.actualOwner || item.owner}</p>
+    <p><strong>Suggested output:</strong> ${artifactLabel(item)}</p>
+  `;
+}
+
+function artifactLabel(item) {
+  const classification = item.actualClassification || item.classification;
+  if (classification === 'support-issue') return 'triage summary';
+  if (classification === 'access-request') return 'access review note';
+  if (classification === 'incident') return 'incident summary';
+  if (classification === 'infrastructure-change') return 'change plan';
+  return 'routing note';
 }
 
 function renderActive(item, title = 'Active Scenario') {
@@ -45,6 +75,8 @@ function renderActive(item, title = 'Active Scenario') {
       ${((item.escalation || []).map((e) => `<span class="tag">escalate: ${e}</span>`).join('')) || '<span class="tag">no escalation</span>'}
     </div>
   `;
+
+  renderArtifacts(item);
 }
 
 function startPlayback() {
@@ -88,6 +120,11 @@ async function load() {
 async function classifyManualRequest() {
   const input = requestInput.value.trim();
   if (!input) return;
+  const pending = { input };
+  queue.unshift(pending);
+  queue = queue.slice(0, 8);
+  renderQueue();
+
   const res = await fetch('/api/classify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -97,6 +134,8 @@ async function classifyManualRequest() {
   const item = { ...data, input };
   history.unshift(item);
   history = history.slice(0, 8);
+  queue = queue.filter((entry) => entry !== pending);
+  renderQueue();
   renderHistory();
   if (intervalId) clearInterval(intervalId);
   renderActive(item, 'Manual Request');
