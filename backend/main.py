@@ -49,7 +49,7 @@ def health() -> Dict[str, bool]:
 @app.get('/api/requests')
 def list_requests() -> Any:
     db = read_db()
-    return db['requests']
+    return list(db['requests'])
 
 
 @app.get('/api/requests/{request_id}')
@@ -222,7 +222,7 @@ def request_approvals(request_id: str) -> Any:
 @app.get('/api/approvals')
 def list_approvals() -> Any:
     db = read_db()
-    return db['approvals']
+    return list(db['approvals'])
 
 
 @app.post('/api/approvals/{approval_id}/approve')
