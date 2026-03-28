@@ -1,0 +1,9 @@
+{
+  "name": "ai-it-team",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "route": "node runtime/router/classify-request.js"
+  }
+}
