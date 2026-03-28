@@ -18,4 +18,4 @@ Multiple users report that an internal line-of-business system is unreachable.
 
 ## Why this example matters
 
-It shows that the team model is not just for static documentation. It is meant to coordinate cross-domain response work.
+It illustrates how the team model can represent cross-domain response work without collapsing multiple responsibilities into one vague assistant role.

@@ -88,12 +88,23 @@ Primary owners:
 - runbook-writer
 - change-log-specialist
 
-## Next step
+## Related workflow docs
 
-These workflows should eventually become individual docs with:
+These workflows are further broken out in `docs/workflows/` for more concrete scenario-level detail, including:
 
-- triggers
-- actors
-- handoffs
-- approval points
-- completion criteria
+- support triage
+- access requests
+- incident response
+- change management
+- documentation maintenance
+
+## Current implementation note
+
+The repository currently models these workflows through:
+
+- role definitions
+- workflow docs
+- request examples
+- prototype routing behavior
+- scenario tests
+- visualization in the local dashboard

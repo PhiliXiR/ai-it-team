@@ -32,13 +32,13 @@ Instead of one assistant doing everything, create a structured organization that
 
 ## What success looks like
 
-A future implementation of this project would let a human operator work with an AI-powered IT team that feels more like a real operations org:
+A stronger implementation of this project would let a human operator work with a structured, role-based AI support model for IT workflows such as:
 
-- helpdesk handles first-contact issues
-- infra handles systems and cloud
-- security handles risk and access questions
-- incident leads handle outages
-- documentation keeps decisions and runbooks coherent
+- helpdesk intake and first-pass routing
+- systems and infrastructure coordination
+- security review and escalation
+- incident handling
+- documentation and runbook upkeep
 
 The human remains accountable and authoritative.
 The agents provide structure, speed, and domain-specific support.
