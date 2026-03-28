@@ -14,72 +14,80 @@
         <h1>Topology Dashboard</h1>
         <p class="sub">Requests -> agents -> systems, visualized from the current runtime state.</p>
       </div>
-      <button id="refreshBtn">Refresh</button>
+      <div class="meta">
+        <button id="modeVisualBtn">Visual Mode</button>
+        <button id="modeInspectBtn">Inspection Mode</button>
+        <button id="refreshBtn">Refresh</button>
+      </div>
     </header>
 
     <section class="summary" id="summary"></section>
 
-    <section class="topology-wrap" id="topologyWrap">
-      <div class="pulse-dot" id="pulseDot"></div>
-      <div class="column">
-        <h2>Systems</h2>
-        <div class="node" data-node="vpn-system">VPN</div>
-        <div class="node" data-node="idp-system">Identity Provider</div>
-        <div class="node" data-node="internal-app">Internal App</div>
-        <div class="node" data-node="firewall-system">Firewall</div>
-      </div>
-      <div class="column middle">
-        <h2>Agents</h2>
-        <div class="node" data-node="helpdesk-lead">Helpdesk Lead</div>
-        <div class="node" data-node="network-lead">Network Lead</div>
-        <div class="node" data-node="vpn-specialist">VPN Specialist</div>
-        <div class="node" data-node="iam-lead">IAM Lead</div>
-        <div class="node" data-node="iam-specialist">IAM Specialist</div>
-        <div class="node" data-node="incident-lead">Incident Lead</div>
-        <div class="node" data-node="incident-triage-specialist">Incident Triage</div>
-        <div class="node" data-node="documentation-lead">Documentation Lead</div>
-        <div class="node" data-node="security-director">Security Director</div>
-      </div>
-      <div class="column">
-        <h2>Requests</h2>
-        <div class="node" data-node="request-queue">Request Queue</div>
-      </div>
-    </section>
+    <div id="visualModeView">
+      <section class="topology-wrap" id="topologyWrap">
+        <div class="pulse-dot" id="pulseDot"></div>
+        <div class="column">
+          <h2>Systems</h2>
+          <div class="node" data-node="vpn-system">VPN</div>
+          <div class="node" data-node="idp-system">Identity Provider</div>
+          <div class="node" data-node="internal-app">Internal App</div>
+          <div class="node" data-node="firewall-system">Firewall</div>
+        </div>
+        <div class="column middle">
+          <h2>Agents</h2>
+          <div class="node" data-node="helpdesk-lead">Helpdesk Lead</div>
+          <div class="node" data-node="network-lead">Network Lead</div>
+          <div class="node" data-node="vpn-specialist">VPN Specialist</div>
+          <div class="node" data-node="iam-lead">IAM Lead</div>
+          <div class="node" data-node="iam-specialist">IAM Specialist</div>
+          <div class="node" data-node="incident-lead">Incident Lead</div>
+          <div class="node" data-node="incident-triage-specialist">Incident Triage</div>
+          <div class="node" data-node="documentation-lead">Documentation Lead</div>
+          <div class="node" data-node="security-director">Security Director</div>
+        </div>
+        <div class="column">
+          <h2>Requests</h2>
+          <div class="node" data-node="request-queue">Request Queue</div>
+        </div>
+      </section>
 
-    <section class="grid-2">
-      <section class="current-case card" id="currentCase"></section>
-      <section class="artifacts card" id="artifactPanel"></section>
-    </section>
+      <section class="grid-2">
+        <section class="current-case card" id="currentCase"></section>
+        <section class="artifacts card" id="artifactPanel"></section>
+      </section>
 
-    <section class="grid-2">
-      <section class="history card">
-        <h2>Recently Seen Requests</h2>
-        <div id="historyList"></div>
+      <section class="grid-2">
+        <section class="history card">
+          <h2>Recently Seen Requests</h2>
+          <div id="historyList"></div>
+        </section>
+        <section class="queue card">
+          <h2>Incoming Queue</h2>
+          <div id="queueList"></div>
+        </section>
       </section>
-      <section class="queue card">
-        <h2>Incoming Queue</h2>
-        <div id="queueList"></div>
-      </section>
-    </section>
+    </div>
 
-    <section class="grid-2">
-      <section class="approvals card">
-        <h2>Pending Approvals</h2>
-        <div id="approvalsList"></div>
+    <div id="inspectionModeView" style="display:none;">
+      <section class="grid-2">
+        <section class="approvals card">
+          <h2>Pending Approvals</h2>
+          <div id="approvalsList"></div>
+        </section>
+        <section class="approvals card">
+          <h2>Agent Activity</h2>
+          <div id="agentStatusList"></div>
+        </section>
       </section>
-      <section class="approvals card">
-        <h2>Agent Activity</h2>
-        <div id="agentStatusList"></div>
-      </section>
-    </section>
 
-    <section class="grid-2">
-      <section class="results" id="results"></section>
-      <section class="trace-panel card">
-        <h2>Trace Drilldown</h2>
-        <div id="traceDetail">Select a request to inspect trace events, approvals, and workflow activity.</div>
+      <section class="grid-2">
+        <section class="results" id="results"></section>
+        <section class="trace-panel card">
+          <h2>Trace Drilldown</h2>
+          <div id="traceDetail">Select a request to inspect trace events, approvals, and workflow activity.</div>
+        </section>
       </section>
-    </section>
+    </div>
   </main>
 
   <script type="module" src="app.js"></script>

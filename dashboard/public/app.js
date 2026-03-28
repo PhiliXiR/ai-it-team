@@ -1,6 +1,10 @@
 const summary = document.getElementById('summary');
 const results = document.getElementById('results');
 const refreshBtn = document.getElementById('refreshBtn');
+const modeVisualBtn = document.getElementById('modeVisualBtn');
+const modeInspectBtn = document.getElementById('modeInspectBtn');
+const visualModeView = document.getElementById('visualModeView');
+const inspectionModeView = document.getElementById('inspectionModeView');
 const currentCase = document.getElementById('currentCase');
 const historyList = document.getElementById('historyList');
 const queueList = document.getElementById('queueList');
@@ -16,6 +20,13 @@ let activeIndex = 0;
 let intervalId;
 let history = [];
 let queue = [];
+let currentMode = 'visual';
+
+function setMode(mode) {
+  currentMode = mode;
+  visualModeView.style.display = mode === 'visual' ? 'block' : 'none';
+  inspectionModeView.style.display = mode === 'inspect' ? 'block' : 'none';
+}
 
 function clearActive() {
   document.querySelectorAll('.node.active, .node.processing').forEach((el) => {
@@ -240,6 +251,9 @@ results.addEventListener('click', (event) => {
   if (item) renderActive(item, 'Selected Request');
 });
 
+modeVisualBtn.addEventListener('click', () => setMode('visual'));
+modeInspectBtn.addEventListener('click', () => setMode('inspect'));
 refreshBtn.addEventListener('click', () => load({ reset: true }));
 connectEventStream();
+setMode('visual');
 load();
