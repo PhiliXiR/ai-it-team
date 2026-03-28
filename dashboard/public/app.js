@@ -393,9 +393,15 @@ async function animateStage(item, stageIndex) {
   clearActive();
   const { stages } = workflowModel(item);
   const stage = stages[stageIndex];
-  if (!stage?.nodeId) return;
+  if (!stage?.nodeId) {
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    return;
+  }
   const node = document.querySelector(`[data-node="${stage.nodeId}"]`);
-  if (!node) return;
+  if (!node) {
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    return;
+  }
   node.classList.add('active');
   node.classList.add('processing');
   movePulseToNode(node);
@@ -492,24 +498,27 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
 async function stepWorkflow() {
   if (!cases.length || autoAdvanceBusy) return;
   autoAdvanceBusy = true;
-  const item = cases[activeIndex];
-  const model = workflowModel(item);
-  const currentStageIndex = getStageIndex(item);
-  await renderActive(item, currentStageIndex);
+  try {
+    const item = cases[activeIndex];
+    const model = workflowModel(item);
+    const currentStageIndex = getStageIndex(item);
+    await renderActive(item, currentStageIndex);
 
-  if (currentStageIndex < model.stages.length - 1) {
-    setStageIndex(item, currentStageIndex + 1);
-  } else {
-    setStageIndex(item, 0);
-    activeIndex = (activeIndex + 1) % cases.length;
-    const nextItem = cases[activeIndex];
-    if (nextItem && !stageIndexByRequest.has(nextItem.id)) {
-      setStageIndex(nextItem, 0);
+    if (currentStageIndex < model.stages.length - 1) {
+      setStageIndex(item, currentStageIndex + 1);
+    } else {
+      setStageIndex(item, 0);
+      activeIndex = (activeIndex + 1) % cases.length;
+      const nextItem = cases[activeIndex];
+      if (nextItem && !stageIndexByRequest.has(nextItem.id)) {
+        setStageIndex(nextItem, 0);
+      }
     }
-  }
 
-  renderRuntimeStrip({ summary: runtimeSummaryData() });
-  autoAdvanceBusy = false;
+    renderRuntimeStrip({ summary: runtimeSummaryData() });
+  } finally {
+    autoAdvanceBusy = false;
+  }
 }
 
 function schedulePlayback() {
