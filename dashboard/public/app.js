@@ -1,6 +1,8 @@
 const summary = document.getElementById('summary');
 const results = document.getElementById('results');
 const refreshBtn = document.getElementById('refreshBtn');
+const classifyBtn = document.getElementById('classifyBtn');
+const requestInput = document.getElementById('requestInput');
 const currentCase = document.getElementById('currentCase');
 let cases = [];
 let activeIndex = 0;
@@ -10,32 +12,34 @@ function clearActive() {
   document.querySelectorAll('.node.active').forEach((el) => el.classList.remove('active'));
 }
 
-function showCase(index) {
-  const item = cases[index];
-  if (!item) return;
+function renderActive(item, title = 'Active Scenario') {
   clearActive();
-  item.route.forEach((nodeId) => {
+  (item.route || []).forEach((nodeId) => {
     const node = document.querySelector(`[data-node="${nodeId}"]`);
     if (node) node.classList.add('active');
   });
 
   currentCase.innerHTML = `
-    <h2>Active Scenario</h2>
+    <h2>${title}</h2>
     <p>${item.input}</p>
     <div class="meta">
-      <span class="tag">class: ${item.actualClassification}</span>
-      <span class="tag">owner: ${item.actualOwner}</span>
-      <span class="tag ${item.pass ? 'pass' : 'fail'}">${item.pass ? 'PASS' : 'FAIL'}</span>
+      <span class="tag">class: ${item.actualClassification || item.classification}</span>
+      <span class="tag">owner: ${item.actualOwner || item.owner}</span>
+      ${item.pass !== undefined ? `<span class="tag ${item.pass ? 'pass' : 'fail'}">${item.pass ? 'PASS' : 'FAIL'}</span>` : ''}
+    </div>
+    <div class="meta">
+      ${((item.escalation || []).map((e) => `<span class="tag">escalate: ${e}</span>`).join('')) || '<span class="tag">no escalation</span>'}
     </div>
   `;
 }
 
 function startPlayback() {
   if (intervalId) clearInterval(intervalId);
-  showCase(activeIndex);
+  if (!cases.length) return;
+  renderActive(cases[activeIndex]);
   intervalId = setInterval(() => {
     activeIndex = (activeIndex + 1) % cases.length;
-    showCase(activeIndex);
+    renderActive(cases[activeIndex]);
   }, 2600);
 }
 
@@ -67,5 +71,19 @@ async function load() {
   startPlayback();
 }
 
+async function classifyManualRequest() {
+  const input = requestInput.value.trim();
+  if (!input) return;
+  const res = await fetch('/api/classify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ input })
+  });
+  const data = await res.json();
+  if (intervalId) clearInterval(intervalId);
+  renderActive({ ...data, input }, 'Manual Request');
+}
+
 refreshBtn.addEventListener('click', load);
+classifyBtn.addEventListener('click', classifyManualRequest);
 load();

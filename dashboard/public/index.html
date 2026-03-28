@@ -12,10 +12,17 @@
       <div>
         <p class="eyebrow">ai-it-team</p>
         <h1>Topology Dashboard</h1>
-        <p class="sub">Requests -> agents -> systems, visualized live from the current test corpus.</p>
+        <p class="sub">Requests -> agents -> systems, visualized from test cases and manual request input.</p>
       </div>
       <button id="refreshBtn">Refresh</button>
     </header>
+
+    <section class="input-panel">
+      <textarea id="requestInput" placeholder="Paste or type a request here..."></textarea>
+      <div class="input-actions">
+        <button id="classifyBtn">Classify Request</button>
+      </div>
+    </section>
 
     <section class="summary" id="summary"></section>
 

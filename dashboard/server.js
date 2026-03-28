@@ -11,6 +11,7 @@ const app = express();
 const PORT = process.env.PORT || 4411;
 
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
 
 function buildRoute(result) {
   const base = ['request-queue', 'helpdesk-lead'];
@@ -25,14 +26,19 @@ function buildRoute(result) {
   return [...new Set(base)];
 }
 
+function classify(text) {
+  const result = spawnSync('node', [path.join(root, 'runtime', 'router', 'classify-request.js'), text], {
+    encoding: 'utf8'
+  });
+
+  const parsed = JSON.parse(result.stdout);
+  return { ...parsed, route: buildRoute(parsed) };
+}
+
 app.get('/api/tests', (_req, res) => {
   const cases = JSON.parse(fs.readFileSync(path.join(root, 'tests', 'request-cases.json'), 'utf8'));
   const results = cases.map((testCase) => {
-    const result = spawnSync('node', [path.join(root, 'runtime', 'router', 'classify-request.js'), testCase.input], {
-      encoding: 'utf8'
-    });
-
-    const parsed = JSON.parse(result.stdout);
+    const parsed = classify(testCase.input);
     const pass = parsed.classification === testCase.expectedClassification && parsed.owner === testCase.expectedOwner;
 
     return {
@@ -42,13 +48,23 @@ app.get('/api/tests', (_req, res) => {
       actualClassification: parsed.classification,
       actualOwner: parsed.owner,
       escalation: parsed.escalation,
-      route: buildRoute(parsed),
+      route: parsed.route,
       pass
     };
   });
 
   const passed = results.filter((r) => r.pass).length;
   res.json({ passed, total: results.length, results });
+});
+
+app.post('/api/classify', (req, res) => {
+  const text = String(req.body?.input || '').trim();
+  if (!text) {
+    return res.status(400).json({ error: 'Missing input' });
+  }
+
+  const parsed = classify(text);
+  res.json(parsed);
 });
 
 app.listen(PORT, () => {
