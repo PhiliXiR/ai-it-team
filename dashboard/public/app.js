@@ -13,6 +13,7 @@ const approvalsList = document.getElementById('approvalsList');
 const agentStatusList = document.getElementById('agentStatusList');
 const requestDetail = document.getElementById('requestDetail');
 const traceDetail = document.getElementById('traceDetail');
+const dataObjectsPanel = document.getElementById('dataObjectsPanel');
 const pulseDot = document.getElementById('pulseDot');
 const topologyWrap = document.getElementById('topologyWrap');
 let cases = [];
@@ -105,6 +106,7 @@ function renderRequestDetail(item) {
   if (!item) {
     currentCase.innerHTML = 'No active request selected.';
     requestDetail.innerHTML = 'Select a request to inspect workflow detail.';
+    dataObjectsPanel.innerHTML = 'Select a request to inspect the underlying objects.';
     return;
   }
 
@@ -147,6 +149,27 @@ function renderRequestDetail(item) {
       </div>
     </div>
   `;
+
+  const latestApproval = (item.approvals || [])[0] || null;
+  const latestArtifact = item.artifact || null;
+  dataObjectsPanel.innerHTML = `
+    <div class="data-object">
+      <strong>Request Object</strong>
+      <pre class="raw-json">${escapeHtml(JSON.stringify(item, null, 2))}</pre>
+    </div>
+    <div class="data-object">
+      <strong>Approval Object</strong>
+      <pre class="raw-json">${escapeHtml(JSON.stringify(latestApproval, null, 2))}</pre>
+    </div>
+    <div class="data-object">
+      <strong>Artifact Object</strong>
+      <pre class="raw-json">${escapeHtml(JSON.stringify(latestArtifact, null, 2))}</pre>
+    </div>
+    <div class="data-object">
+      <strong>Trace Payloads</strong>
+      <pre class="raw-json">${escapeHtml(JSON.stringify(item.trace || [], null, 2))}</pre>
+    </div>
+  `;
 }
 
 function renderTrace(item) {
@@ -163,6 +186,13 @@ function renderTrace(item) {
       </div>
     `;
   }).join('') : '<p>No trace events available.</p>';
+}
+
+function escapeHtml(text) {
+  return String(text)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
 }
 
 function movePulseToNode(node) {

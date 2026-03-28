@@ -172,11 +172,11 @@ button:hover {
   gap: 18px;
 }
 .inspector-list, .inspector-detail, .current-case, .queue { padding: 18px; }
-.history-entry, .queue-entry, .timeline-entry {
+.history-entry, .queue-entry, .timeline-entry, .data-object {
   border-top: 1px solid var(--line);
   padding: 12px 0;
 }
-.history-entry:first-child, .queue-entry:first-child, .timeline-entry:first-child {
+.history-entry:first-child, .queue-entry:first-child, .timeline-entry:first-child, .data-object:first-child {
   border-top: none;
   padding-top: 0;
 }
@@ -238,6 +238,15 @@ button:hover {
 .timeline-entry.approval::before { background: var(--amber); }
 .timeline-entry.blocked::before { background: var(--red); }
 .timeline-entry.resolved::before { background: var(--green); }
+pre.raw-json {
+  margin: 10px 0 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.02);
+  color: var(--text);
+  font-size: .84rem;
+}
 .mode-active {
   border-color: rgba(124, 199, 255, 0.45) !important;
   box-shadow: 0 0 0 1px rgba(124,199,255,0.08), 0 8px 24px rgba(124,199,255,0.08);
