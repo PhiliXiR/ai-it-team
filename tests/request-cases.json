@@ -1,0 +1,22 @@
+[
+  {
+    "input": "A user cannot connect to the company VPN from their laptop",
+    "expectedClassification": "support-issue",
+    "expectedOwner": "network-lead"
+  },
+  {
+    "input": "A contractor needs access to an internal admin tool",
+    "expectedClassification": "access-request",
+    "expectedOwner": "iam-lead"
+  },
+  {
+    "input": "Multiple users cannot access the internal app and it seems down",
+    "expectedClassification": "incident",
+    "expectedOwner": "incident-lead"
+  },
+  {
+    "input": "We need an emergency firewall rule change",
+    "expectedClassification": "infrastructure-change",
+    "expectedOwner": "systems-lead"
+  }
+]

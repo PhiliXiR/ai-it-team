@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "route": "node runtime/router/classify-request.js"
+    "route": "node runtime/router/classify-request.js",
+    "test:router": "node tests/test-router.js"
   }
 }
