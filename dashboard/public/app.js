@@ -342,14 +342,26 @@ function renderVisualState(item, cursor) {
   const nextEntry = buildTimeline(item)[cursor + 1];
   const nextStep = nextEntry?.label || 'Workflow complete';
 
+  const activeKind = entry?.kind || 'step';
+  const activeLabel = entry?.label || currentStage;
+  const activeMessage = entry?.message || 'No timeline detail available.';
+
   currentCase.innerHTML = `
     <h2>Current Focus</h2>
     <div class="focus-title">${item.input}</div>
-    <p class="muted">This request now plays through a reversible timeline of workflow, human, and execution steps.</p>
+    <p class="muted">This hero now updates on every timeline step so the dashboard always shows what is happening right now.</p>
+    <div class="meta">
+      <span class="tag">now: ${activeLabel}</span>
+      <span class="tag">type: ${activeKind}</span>
+      <span class="tag">next: ${nextStep}</span>
+    </div>
     <div class="meta">
       <span class="tag">owner: ${item.actualOwner}</span>
       <span class="tag ${statusTag(item.status)}">${item.status}</span>
       <span class="tag">class: ${item.actualClassification}</span>
+    </div>
+    <div class="meta">
+      <span class="tag">${activeMessage}</span>
     </div>
   `;
 
@@ -378,10 +390,10 @@ function renderVisualState(item, cursor) {
     <div class="detail-grid">
       <div class="detail-box"><div class="label">Current Status</div><div>${item.status}</div></div>
       <div class="detail-box"><div class="label">Current Owner</div><div>${item.actualOwner}</div></div>
-      <div class="detail-box"><div class="label">Current Step</div><div>${entry?.label || currentStage}</div></div>
+      <div class="detail-box"><div class="label">Current Step</div><div>${activeLabel}</div></div>
       <div class="detail-box"><div class="label">Next Step</div><div>${nextStep}</div></div>
     </div>
-    <div class="meta"><span class="tag">${entry?.message || 'No timeline detail available.'}</span></div>
+    <div class="meta"><span class="tag">${activeMessage}</span></div>
   `;
 
   renderFlow(item, cursor);
