@@ -157,7 +157,7 @@ A simple walkthrough:
 - IT operations and support professionals
 - platform and internal tooling teams
 - people exploring agent orchestration for operational work
-- hiring managers or peers evaluating systems thinking, workflow design, and prototyping ability
+- anyone interested in modeling operational workflows in a more structured and observable way
 
 ## Status
 
