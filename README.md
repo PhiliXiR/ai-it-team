@@ -4,7 +4,7 @@ A public prototype for modeling how an AI-assisted IT organization could route, 
 
 ## What this is
 
-`ai-it-team` is a portfolio-grade exploration of an **AI-assisted IT operating model**.
+`ai-it-team` is a public exploration of an **AI-assisted IT operating model**.
 
 Instead of treating IT work as a single general-purpose assistant problem, this project breaks common operations work into explicit roles, workflows, approvals, escalation paths, and outputs. The goal is to make the operating model visible and testable instead of leaving it as vague agent hype.
 
@@ -47,7 +47,7 @@ This repository demonstrates how to translate real-world IT / operations concept
 
 ## Current implementation
 
-The project has moved beyond docs-only planning into a working prototype layer.
+The project has moved beyond docs-only planning into an active prototype layer.
 
 Implemented now:
 
@@ -110,7 +110,7 @@ This repository is intended to become:
 
 - a public reference for AI-assisted IT operating models
 - a proof-oriented prototype for routing and orchestration ideas
-- a demoable portfolio project that shows systems thinking and workflow design
+- a clear showcase of systems thinking and workflow design
 - a base for future runtime, evaluation, and visualization work
 
 ## Run the dashboard
