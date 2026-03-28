@@ -5,6 +5,10 @@
   "type": "module",
   "scripts": {
     "route": "node runtime/router/classify-request.js",
-    "test:router": "node tests/test-router.js"
+    "test:router": "node tests/test-router.js",
+    "dashboard": "node dashboard/server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
   }
 }
