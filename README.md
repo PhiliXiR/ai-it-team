@@ -137,7 +137,7 @@ A simple walkthrough:
 
 ## Project structure
 
-- `docs/` — vision, org structure, workflows, boundaries, evaluation, templates, and evolution notes
+- `docs/` — vision, org structure, workflows, boundaries, evaluation, templates, and system design notes
 - `agents/` — agent role specs
 - `runtime/` — prompt and router prototype layer
 - `tests/` — request corpus and router tests
