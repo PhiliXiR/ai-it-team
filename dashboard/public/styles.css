@@ -26,7 +26,7 @@ body {
   margin: 0 auto;
   padding: 28px 0 40px;
 }
-.hero, .card, .summary-card, .topology-wrap, .input-panel {
+.hero, .card, .summary-card, .topology-wrap {
   border: 1px solid var(--line);
   background: linear-gradient(180deg, #161d27, var(--panel));
   box-shadow: var(--shadow);
@@ -91,6 +91,10 @@ button:hover {
 .summary-card .value {
   font-size: 1.8rem;
   font-weight: 800;
+}
+.runtime-strip {
+  margin-bottom: 18px;
+  padding: 16px 18px;
 }
 .topology-wrap {
   position: relative;
@@ -158,11 +162,16 @@ button:hover {
 }
 .grid-2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1.2fr .8fr;
   gap: 18px;
   margin-bottom: 18px;
 }
-.current-case, .history, .queue, .artifacts, .trace-panel, .approvals { padding: 18px; }
+.inspector-layout {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 18px;
+}
+.inspector-list, .inspector-detail, .current-case, .queue { padding: 18px; }
 .history-entry, .queue-entry, .timeline-entry {
   border-top: 1px solid var(--line);
   padding: 12px 0;
@@ -172,7 +181,7 @@ button:hover {
   padding-top: 0;
 }
 .queue-entry.pending { color: var(--amber); }
-.results { display: grid; gap: 14px; }
+.results { display: grid; gap: 12px; }
 .card { padding: 18px; }
 .meta {
   display: flex;
@@ -234,6 +243,6 @@ button:hover {
   box-shadow: 0 0 0 1px rgba(124,199,255,0.08), 0 8px 24px rgba(124,199,255,0.08);
 }
 @media (max-width: 1000px) {
-  .grid-2, .topology-wrap, .summary, .detail-grid { grid-template-columns: 1fr; }
+  .grid-2, .topology-wrap, .summary, .detail-grid, .inspector-layout { grid-template-columns: 1fr; }
   .topology-wrap::before, .topology-wrap::after { display: none; }
 }

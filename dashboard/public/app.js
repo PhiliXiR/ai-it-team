@@ -1,5 +1,6 @@
 const summary = document.getElementById('summary');
 const results = document.getElementById('results');
+const runtimeStrip = document.getElementById('runtimeStrip');
 const refreshBtn = document.getElementById('refreshBtn');
 const modeVisualBtn = document.getElementById('modeVisualBtn');
 const modeInspectBtn = document.getElementById('modeInspectBtn');
@@ -10,7 +11,6 @@ const historyList = document.getElementById('historyList');
 const queueList = document.getElementById('queueList');
 const approvalsList = document.getElementById('approvalsList');
 const agentStatusList = document.getElementById('agentStatusList');
-const artifactPanel = document.getElementById('artifactPanel');
 const requestDetail = document.getElementById('requestDetail');
 const traceDetail = document.getElementById('traceDetail');
 const pulseDot = document.getElementById('pulseDot');
@@ -49,21 +49,22 @@ function renderHistory() {
     <div class="history-entry">
       <strong>${item.input}</strong>
       <div class="meta">
-        <span class="tag">class: ${item.actualClassification}</span>
-        <span class="tag">owner: ${item.actualOwner}</span>
-        <span class="tag ${statusTag(item.status)}">status: ${item.status}</span>
+        <span class="tag">${item.actualOwner}</span>
+        <span class="tag ${statusTag(item.status)}">${item.status}</span>
       </div>
     </div>
   `).join('');
 }
 
 function renderQueue() {
-  queueList.innerHTML = queue.map((item) => `
-    <div class="queue-entry pending">
-      <strong>${item.input}</strong>
-      <div class="meta"><span class="tag">live</span></div>
-    </div>
-  `).join('');
+  queueList.innerHTML = queue.length
+    ? queue.map((item) => `
+      <div class="queue-entry pending">
+        <strong>Now processing</strong>
+        <div>${item.input}</div>
+      </div>
+    `).join('')
+    : '<p class="muted">Playback queue is idle between request transitions.</p>';
 }
 
 function renderApprovals() {
@@ -74,9 +75,9 @@ function renderApprovals() {
       <div class="meta">
         <span class="tag">requested by: ${item.requestedBy}</span>
         <span class="tag">approver: ${item.requiredApproverRole}</span>
+        <span class="tag status-awaiting-approval">pending</span>
       </div>
       <div class="meta">
-        <span class="tag status-awaiting-approval">pending</span>
         <button data-action="approve" data-id="${item.id}">Approve</button>
         <button data-action="reject" data-id="${item.id}">Reject</button>
       </div>
@@ -100,22 +101,25 @@ function renderAgentStatus() {
   `).join('');
 }
 
-function renderArtifacts(item) {
-  const artifactType = item.artifact?.type || `${item.actualClassification} summary`;
-  artifactPanel.innerHTML = `
-    <h2>Generated Artifact</h2>
-    <p><strong>Type:</strong> ${artifactType}</p>
-    <p><strong>Owner:</strong> ${item.actualOwner}</p>
-    <p><strong>Trace events:</strong> ${item.traceCount || 0}</p>
-    <p><strong>Approvals:</strong> ${(item.approvals || []).length}</p>
-  `;
-}
-
 function renderRequestDetail(item) {
   if (!item) {
+    currentCase.innerHTML = 'No active request selected.';
     requestDetail.innerHTML = 'Select a request to inspect workflow detail.';
     return;
   }
+
+  currentCase.innerHTML = `
+    <h2>Current Focus</h2>
+    <p>${item.input}</p>
+    <div class="meta">
+      <span class="tag">owner: ${item.actualOwner}</span>
+      <span class="tag ${statusTag(item.status)}">${item.status}</span>
+    </div>
+    <div class="meta">
+      <span class="tag">class: ${item.actualClassification}</span>
+      <span class="tag">trace: ${item.traceCount || 0}</span>
+    </div>
+  `;
 
   requestDetail.innerHTML = `
     <p>${item.input}</p>
@@ -183,22 +187,8 @@ async function animateRoute(route) {
   }
 }
 
-async function renderActive(item, title = 'Active Request') {
+async function renderActive(item) {
   selectedRequestId = item.id;
-  currentCase.innerHTML = `
-    <h2>${title}</h2>
-    <p>${item.input}</p>
-    <div class="meta">
-      <span class="tag">class: ${item.actualClassification}</span>
-      <span class="tag">owner: ${item.actualOwner}</span>
-      <span class="tag ${statusTag(item.status)}">status: ${item.status}</span>
-    </div>
-    <div class="meta">
-      ${((item.escalation || []).map((e) => `<span class="tag">escalate: ${e}</span>`).join('')) || '<span class="tag">no escalation</span>'}
-    </div>
-  `;
-
-  renderArtifacts(item);
   renderRequestDetail(item);
   renderTrace(item);
   queue = [{ input: item.input }];
@@ -218,6 +208,20 @@ function highlightSelectedRequest() {
   document.querySelectorAll('.request-card').forEach((card) => {
     card.classList.toggle('selected', card.dataset.requestId === selectedRequestId);
   });
+}
+
+function renderRuntimeStrip(data) {
+  const selected = cases.find((item) => item.id === selectedRequestId) || cases[0];
+  runtimeStrip.innerHTML = `
+    <div class="meta">
+      <span class="tag">mode: ${currentMode === 'visual' ? 'visual playback' : 'inspection'}</span>
+      <span class="tag">requests: ${data.summary.totalRequests}</span>
+      <span class="tag">pending approvals: ${data.summary.awaitingApproval}</span>
+      <span class="tag">artifacts: ${data.summary.totalArtifacts}</span>
+      ${selected ? `<span class="tag">focus: ${selected.actualClassification} -> ${selected.actualOwner}</span>` : ''}
+    </div>
+    <p class="muted" style="margin-top:12px; margin-bottom:0;">This dashboard is currently showing seeded demo/runtime state with live updates layered on top.</p>
+  `;
 }
 
 function applyRuntimeData(data, { preserveHistory = false } = {}) {
@@ -240,10 +244,9 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
     <article class="card request-card" data-request-id="${item.id}">
       <h2>${item.input}</h2>
       <div class="meta">
-        <span class="tag">class: ${item.actualClassification}</span>
-        <span class="tag">owner: ${item.actualOwner}</span>
-        <span class="tag ${statusTag(item.status)}">status: ${item.status}</span>
-        <span class="tag">trace events: ${item.traceCount || 0}</span>
+        <span class="tag">${item.actualClassification}</span>
+        <span class="tag">${item.actualOwner}</span>
+        <span class="tag ${statusTag(item.status)}">${item.status}</span>
       </div>
     </article>
   `).join('');
@@ -251,6 +254,7 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
   const selected = cases.find((item) => item.id === selectedRequestId) || cases[0] || null;
   renderRequestDetail(selected);
   renderTrace(selected);
+  renderRuntimeStrip(data);
   highlightSelectedRequest();
 }
 
@@ -310,12 +314,18 @@ results.addEventListener('click', (event) => {
   const item = cases.find((entry) => entry.id === card.dataset.requestId);
   if (item) {
     setMode('inspect');
-    renderActive(item, 'Selected Request');
+    renderActive(item);
   }
 });
 
-modeVisualBtn.addEventListener('click', () => setMode('visual'));
-modeInspectBtn.addEventListener('click', () => setMode('inspect'));
+modeVisualBtn.addEventListener('click', () => {
+  setMode('visual');
+  renderRuntimeStrip({ summary: { totalRequests: cases.length, totalArtifacts: cases.filter(Boolean).length, awaitingApproval: approvals.filter((a) => a.status === 'pending').length } });
+});
+modeInspectBtn.addEventListener('click', () => {
+  setMode('inspect');
+  renderRuntimeStrip({ summary: { totalRequests: cases.length, totalArtifacts: cases.filter(Boolean).length, awaitingApproval: approvals.filter((a) => a.status === 'pending').length } });
+});
 refreshBtn.addEventListener('click', () => load({ reset: true }));
 connectEventStream();
 setMode('visual');

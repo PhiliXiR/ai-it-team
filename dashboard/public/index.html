@@ -22,6 +22,7 @@
     </header>
 
     <section class="summary" id="summary"></section>
+    <section class="runtime-strip card" id="runtimeStrip"></section>
 
     <div id="visualModeView">
       <section class="topology-wrap" id="topologyWrap">
@@ -53,38 +54,30 @@
 
       <section class="grid-2">
         <section class="current-case card" id="currentCase"></section>
-        <section class="artifacts card" id="artifactPanel"></section>
-      </section>
-
-      <section class="grid-2">
-        <section class="history card">
-          <h2>Recently Seen Requests</h2>
-          <div id="historyList"></div>
-        </section>
         <section class="queue card">
-          <h2>Incoming Queue</h2>
+          <h2>Queue + Recent Activity</h2>
           <div id="queueList"></div>
+          <div id="historyList"></div>
         </section>
       </section>
     </div>
 
     <div id="inspectionModeView" style="display:none;">
-      <section class="grid-2">
-        <section class="approvals card">
-          <h2>Pending Approvals</h2>
-          <div id="approvalsList"></div>
+      <section class="inspector-layout">
+        <section class="card inspector-list">
+          <h2>Requests</h2>
+          <div id="results"></div>
         </section>
-        <section class="approvals card">
-          <h2>Agent Activity</h2>
-          <div id="agentStatusList"></div>
-        </section>
-      </section>
-
-      <section class="grid-2">
-        <section class="results" id="results"></section>
-        <section class="trace-panel card">
+        <section class="card inspector-detail">
           <h2>Selected Request</h2>
           <div id="requestDetail">Select a request to inspect workflow detail.</div>
+
+          <h2 style="margin-top:22px;">Approvals</h2>
+          <div id="approvalsList"></div>
+
+          <h2 style="margin-top:22px;">Agent Activity</h2>
+          <div id="agentStatusList"></div>
+
           <h2 style="margin-top:22px;">Trace Timeline</h2>
           <div id="traceDetail">Select a request to inspect trace events, approvals, and workflow activity.</div>
         </section>
