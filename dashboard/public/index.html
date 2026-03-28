@@ -12,17 +12,10 @@
       <div>
         <p class="eyebrow">ai-it-team</p>
         <h1>Topology Dashboard</h1>
-        <p class="sub">Requests -> agents -> systems, visualized from test cases and manual request input.</p>
+        <p class="sub">Requests -> agents -> systems, visualized from the current scenario set.</p>
       </div>
       <button id="refreshBtn">Refresh</button>
     </header>
-
-    <section class="input-panel">
-      <textarea id="requestInput" placeholder="Paste or type a request here..."></textarea>
-      <div class="input-actions">
-        <button id="classifyBtn">Classify Request</button>
-      </div>
-    </section>
 
     <section class="summary" id="summary"></section>
 
@@ -60,7 +53,7 @@
 
     <section class="grid-2">
       <section class="history card">
-        <h2>Request History</h2>
+        <h2>Scenario History</h2>
         <div id="historyList"></div>
       </section>
       <section class="queue card">
