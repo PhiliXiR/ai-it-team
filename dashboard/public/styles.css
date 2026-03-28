@@ -1,29 +1,36 @@
 :root {
   --bg: #0a0d12;
   --panel: #121721;
+  --panel-2: #0f141c;
   --line: #263241;
+  --line-2: rgba(124, 199, 255, 0.14);
   --text: #eef2f6;
   --muted: #9eacbb;
   --green: #7ff0a4;
   --red: #ff7f90;
   --blue: #7cc7ff;
   --amber: #ffd38a;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
 }
 * { box-sizing: border-box; }
 body {
   margin: 0;
   font-family: Inter, Roboto, Arial, sans-serif;
-  background: linear-gradient(180deg, #06080b 0%, var(--bg) 100%);
+  background:
+    radial-gradient(circle at top, rgba(124, 199, 255, 0.08), transparent 35%),
+    linear-gradient(180deg, #06080b 0%, var(--bg) 100%);
   color: var(--text);
 }
 .app {
-  width: min(calc(100% - 32px), 1280px);
+  width: min(calc(100% - 32px), 1320px);
   margin: 0 auto;
   padding: 28px 0 40px;
 }
 .hero, .card, .summary-card, .topology-wrap, .input-panel {
   border: 1px solid var(--line);
   background: linear-gradient(180deg, #161d27, var(--panel));
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(6px);
 }
 .hero {
   display: flex;
@@ -33,6 +40,10 @@ body {
   padding: 22px;
   margin-bottom: 18px;
 }
+.sub {
+  color: var(--muted);
+  max-width: 760px;
+}
 .eyebrow {
   text-transform: uppercase;
   letter-spacing: .14em;
@@ -41,12 +52,22 @@ body {
   font-weight: 700;
 }
 h1, h2, p { margin-top: 0; }
+h1 {
+  margin-bottom: 8px;
+  font-size: 2rem;
+}
 button {
-  background: rgba(124, 199, 255, 0.08);
+  background: linear-gradient(180deg, rgba(124, 199, 255, 0.18), rgba(124, 199, 255, 0.08));
   color: var(--text);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-2);
   padding: 10px 14px;
   cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(124, 199, 255, 0.32);
+  box-shadow: 0 0 0 1px rgba(124, 199, 255, 0.08), 0 8px 24px rgba(124, 199, 255, 0.08);
 }
 .input-panel {
   padding: 18px;
@@ -56,11 +77,16 @@ textarea {
   width: 100%;
   min-height: 110px;
   resize: vertical;
-  background: rgba(255,255,255,0.03);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
   color: var(--text);
   border: 1px solid var(--line);
   padding: 14px;
   font: inherit;
+}
+textarea:focus {
+  outline: none;
+  border-color: rgba(124, 199, 255, 0.32);
+  box-shadow: 0 0 0 1px rgba(124, 199, 255, 0.08);
 }
 .input-actions {
   margin-top: 12px;
@@ -73,6 +99,15 @@ textarea {
 }
 .summary-card {
   padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.summary-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--blue), transparent);
 }
 .summary-card .label {
   color: var(--muted);
@@ -94,6 +129,18 @@ textarea {
   margin-bottom: 18px;
   overflow: hidden;
 }
+.topology-wrap::before,
+.topology-wrap::after {
+  content: '';
+  position: absolute;
+  top: 52%;
+  width: 22%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(124, 199, 255, 0.18), transparent);
+  pointer-events: none;
+}
+.topology-wrap::before { left: 11%; }
+.topology-wrap::after { right: 11%; }
 .column h2 {
   font-size: .88rem;
   text-transform: uppercase;
@@ -110,13 +157,13 @@ textarea {
   position: relative;
   padding: 14px;
   border: 1px solid var(--line);
-  background: rgba(255,255,255,0.02);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
   color: var(--muted);
   transition: border-color 200ms ease, background 200ms ease, color 200ms ease, box-shadow 200ms ease, transform 200ms ease;
 }
 .node.active {
   border-color: var(--blue);
-  background: rgba(124, 199, 255, 0.08);
+  background: linear-gradient(180deg, rgba(124, 199, 255, 0.14), rgba(124, 199, 255, 0.06));
   color: var(--text);
   box-shadow: 0 0 0 1px rgba(124,199,255,0.1), 0 0 24px rgba(124,199,255,0.08);
   transform: translateY(-2px);
@@ -179,6 +226,7 @@ textarea {
 }
 .tag {
   border: 1px solid var(--line);
+  background: rgba(255,255,255,0.02);
   padding: 6px 10px;
   color: var(--muted);
 }
@@ -187,5 +235,9 @@ textarea {
 @media (max-width: 1000px) {
   .grid-2, .topology-wrap, .summary {
     grid-template-columns: 1fr;
+  }
+  .topology-wrap::before,
+  .topology-wrap::after {
+    display: none;
   }
 }
