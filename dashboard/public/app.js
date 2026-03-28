@@ -349,7 +349,6 @@ function renderVisualState(item, cursor) {
   currentCase.innerHTML = `
     <h2>Current Focus</h2>
     <div class="focus-title">${item.input}</div>
-    <p class="muted">Focused on the current workflow moment.</p>
     <div class="meta">
       <span class="tag">now: ${activeLabel}</span>
       <span class="tag">type: ${activeKind}</span>
