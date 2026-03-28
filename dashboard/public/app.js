@@ -11,6 +11,7 @@ const queueList = document.getElementById('queueList');
 const approvalsList = document.getElementById('approvalsList');
 const agentStatusList = document.getElementById('agentStatusList');
 const artifactPanel = document.getElementById('artifactPanel');
+const requestDetail = document.getElementById('requestDetail');
 const traceDetail = document.getElementById('traceDetail');
 const pulseDot = document.getElementById('pulseDot');
 const topologyWrap = document.getElementById('topologyWrap');
@@ -21,11 +22,18 @@ let intervalId;
 let history = [];
 let queue = [];
 let currentMode = 'visual';
+let selectedRequestId = null;
+
+function statusTag(status) {
+  return `status-${status}`;
+}
 
 function setMode(mode) {
   currentMode = mode;
   visualModeView.style.display = mode === 'visual' ? 'block' : 'none';
   inspectionModeView.style.display = mode === 'inspect' ? 'block' : 'none';
+  modeVisualBtn.classList.toggle('mode-active', mode === 'visual');
+  modeInspectBtn.classList.toggle('mode-active', mode === 'inspect');
 }
 
 function clearActive() {
@@ -43,7 +51,7 @@ function renderHistory() {
       <div class="meta">
         <span class="tag">class: ${item.actualClassification}</span>
         <span class="tag">owner: ${item.actualOwner}</span>
-        <span class="tag">status: ${item.status}</span>
+        <span class="tag ${statusTag(item.status)}">status: ${item.status}</span>
       </div>
     </div>
   `).join('');
@@ -68,6 +76,7 @@ function renderApprovals() {
         <span class="tag">approver: ${item.requiredApproverRole}</span>
       </div>
       <div class="meta">
+        <span class="tag status-awaiting-approval">pending</span>
         <button data-action="approve" data-id="${item.id}">Approve</button>
         <button data-action="reject" data-id="${item.id}">Reject</button>
       </div>
@@ -102,17 +111,54 @@ function renderArtifacts(item) {
   `;
 }
 
-function renderTrace(item) {
-  const trace = item.trace || [];
-  traceDetail.innerHTML = trace.length ? trace.map((entry) => `
-    <div class="history-entry">
-      <strong>${entry.type}</strong>
-      <div class="meta">
-        <span class="tag">actor: ${entry.actor}</span>
-        <span class="tag">time: ${new Date(entry.timestamp).toLocaleTimeString()}</span>
+function renderRequestDetail(item) {
+  if (!item) {
+    requestDetail.innerHTML = 'Select a request to inspect workflow detail.';
+    return;
+  }
+
+  requestDetail.innerHTML = `
+    <p>${item.input}</p>
+    <div class="meta">
+      <span class="tag">class: ${item.actualClassification}</span>
+      <span class="tag">owner: ${item.actualOwner}</span>
+      <span class="tag ${statusTag(item.status)}">status: ${item.status}</span>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-box">
+        <div class="label">Request ID</div>
+        <div>${item.id}</div>
+      </div>
+      <div class="detail-box">
+        <div class="label">Source</div>
+        <div>${item.source || 'unknown'}</div>
+      </div>
+      <div class="detail-box">
+        <div class="label">Trace Events</div>
+        <div>${item.traceCount || 0}</div>
+      </div>
+      <div class="detail-box">
+        <div class="label">Approvals</div>
+        <div>${(item.approvals || []).length}</div>
       </div>
     </div>
-  `).join('') : '<p>No trace events available.</p>';
+  `;
+}
+
+function renderTrace(item) {
+  const trace = item?.trace || [];
+  traceDetail.innerHTML = trace.length ? trace.map((entry) => {
+    const kind = entry.type.includes('approval') ? 'approval' : entry.type.includes('blocked') ? 'blocked' : entry.type.includes('resolved') ? 'resolved' : '';
+    return `
+      <div class="timeline-entry ${kind}">
+        <strong>${entry.type}</strong>
+        <div class="meta">
+          <span class="tag">actor: ${entry.actor}</span>
+          <span class="tag">time: ${new Date(entry.timestamp).toLocaleTimeString()}</span>
+        </div>
+      </div>
+    `;
+  }).join('') : '<p>No trace events available.</p>';
 }
 
 function movePulseToNode(node) {
@@ -138,13 +184,14 @@ async function animateRoute(route) {
 }
 
 async function renderActive(item, title = 'Active Request') {
+  selectedRequestId = item.id;
   currentCase.innerHTML = `
     <h2>${title}</h2>
     <p>${item.input}</p>
     <div class="meta">
       <span class="tag">class: ${item.actualClassification}</span>
       <span class="tag">owner: ${item.actualOwner}</span>
-      <span class="tag">status: ${item.status}</span>
+      <span class="tag ${statusTag(item.status)}">status: ${item.status}</span>
     </div>
     <div class="meta">
       ${((item.escalation || []).map((e) => `<span class="tag">escalate: ${e}</span>`).join('')) || '<span class="tag">no escalation</span>'}
@@ -152,6 +199,7 @@ async function renderActive(item, title = 'Active Request') {
   `;
 
   renderArtifacts(item);
+  renderRequestDetail(item);
   renderTrace(item);
   queue = [{ input: item.input }];
   renderQueue();
@@ -163,6 +211,13 @@ async function renderActive(item, title = 'Active Request') {
     history = [item, ...history].slice(0, 8);
     renderHistory();
   }
+  highlightSelectedRequest();
+}
+
+function highlightSelectedRequest() {
+  document.querySelectorAll('.request-card').forEach((card) => {
+    card.classList.toggle('selected', card.dataset.requestId === selectedRequestId);
+  });
 }
 
 function applyRuntimeData(data, { preserveHistory = false } = {}) {
@@ -187,11 +242,16 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
       <div class="meta">
         <span class="tag">class: ${item.actualClassification}</span>
         <span class="tag">owner: ${item.actualOwner}</span>
-        <span class="tag">status: ${item.status}</span>
+        <span class="tag ${statusTag(item.status)}">status: ${item.status}</span>
         <span class="tag">trace events: ${item.traceCount || 0}</span>
       </div>
     </article>
   `).join('');
+
+  const selected = cases.find((item) => item.id === selectedRequestId) || cases[0] || null;
+  renderRequestDetail(selected);
+  renderTrace(selected);
+  highlightSelectedRequest();
 }
 
 function startPlayback() {
@@ -248,7 +308,10 @@ results.addEventListener('click', (event) => {
   const card = event.target.closest('[data-request-id]');
   if (!card) return;
   const item = cases.find((entry) => entry.id === card.dataset.requestId);
-  if (item) renderActive(item, 'Selected Request');
+  if (item) {
+    setMode('inspect');
+    renderActive(item, 'Selected Request');
+  }
 });
 
 modeVisualBtn.addEventListener('click', () => setMode('visual'));
