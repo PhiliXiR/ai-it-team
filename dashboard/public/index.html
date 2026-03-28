@@ -72,20 +72,40 @@
           <div id="results"></div>
         </section>
         <section class="card inspector-detail">
-          <h2>Request Inspector</h2>
-          <div id="requestDetail">Select a request to inspect workflow detail.</div>
+          <section class="inspector-section">
+            <h2>Request Summary</h2>
+            <div id="requestSummary">Select a request to inspect workflow detail.</div>
+          </section>
 
-          <h2 style="margin-top:22px;">Approvals</h2>
-          <div id="approvalsList"></div>
+          <section class="inspector-section">
+            <h2>Workflow State</h2>
+            <div id="workflowState"></div>
+          </section>
 
-          <h2 style="margin-top:22px;">Agent Activity</h2>
-          <div id="agentStatusList"></div>
+          <section class="inspector-section">
+            <h2>Timeline</h2>
+            <div id="traceDetail">Select a request to inspect trace events, approvals, and workflow activity.</div>
+          </section>
 
-          <h2 style="margin-top:22px;">Trace Timeline</h2>
-          <div id="traceDetail">Select a request to inspect trace events, approvals, and workflow activity.</div>
+          <section class="inspector-section">
+            <h2>Approvals</h2>
+            <div id="approvalsList"></div>
+          </section>
 
-          <h2 style="margin-top:22px;">Data Objects</h2>
-          <div id="dataObjectsPanel"></div>
+          <section class="inspector-section">
+            <h2>Artifacts</h2>
+            <div id="artifactSummary"></div>
+          </section>
+
+          <section class="inspector-section">
+            <h2>Agent Activity</h2>
+            <div id="agentStatusList"></div>
+          </section>
+
+          <section class="inspector-section">
+            <h2>Raw Data</h2>
+            <div id="dataObjectsPanel"></div>
+          </section>
         </section>
       </section>
     </div>

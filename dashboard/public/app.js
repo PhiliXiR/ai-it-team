@@ -14,8 +14,10 @@ const historyList = document.getElementById('historyList');
 const queueList = document.getElementById('queueList');
 const approvalsList = document.getElementById('approvalsList');
 const agentStatusList = document.getElementById('agentStatusList');
-const requestDetail = document.getElementById('requestDetail');
+const requestSummary = document.getElementById('requestSummary');
+const workflowState = document.getElementById('workflowState');
 const traceDetail = document.getElementById('traceDetail');
+const artifactSummary = document.getElementById('artifactSummary');
 const dataObjectsPanel = document.getElementById('dataObjectsPanel');
 const pulseDot = document.getElementById('pulseDot');
 const topologyWrap = document.getElementById('topologyWrap');
@@ -73,21 +75,23 @@ function renderQueue() {
 }
 
 function renderApprovals() {
-  const pending = approvals.filter((item) => item.status === 'pending');
-  approvalsList.innerHTML = pending.length ? pending.map((item) => `
+  const selected = cases.find((item) => item.id === selectedRequestId);
+  const relevant = selected ? (selected.approvals || []) : approvals.filter((item) => item.status === 'pending');
+  approvalsList.innerHTML = relevant.length ? relevant.map((item) => `
     <div class="history-entry">
       <strong>${item.type}</strong>
       <div class="meta">
         <span class="tag">requested by: ${item.requestedBy}</span>
         <span class="tag">approver: ${item.requiredApproverRole}</span>
-        <span class="tag status-awaiting-approval">pending</span>
+        <span class="tag ${statusTag(item.status || 'awaiting-approval')}">${item.status || 'pending'}</span>
       </div>
+      ${item.status === 'pending' ? `
       <div class="meta">
         <button data-action="approve" data-id="${item.id}">Approve</button>
         <button data-action="reject" data-id="${item.id}">Reject</button>
-      </div>
+      </div>` : ''}
     </div>
-  `).join('') : '<p>No pending approvals.</p>';
+  `).join('') : '<p>No approvals linked to this view.</p>';
 }
 
 function renderAgentStatus() {
@@ -106,13 +110,24 @@ function renderAgentStatus() {
   `).join('');
 }
 
-function renderRequestDetail(item) {
+function renderInspector(item) {
   if (!item) {
     currentCase.innerHTML = 'No active request selected.';
-    requestDetail.innerHTML = 'Select a request to inspect workflow detail.';
+    requestSummary.innerHTML = 'Select a request to inspect workflow detail.';
+    workflowState.innerHTML = 'No workflow state selected.';
+    traceDetail.innerHTML = 'No trace events available.';
+    artifactSummary.innerHTML = 'No artifact selected.';
     dataObjectsPanel.innerHTML = 'Select a request to inspect the underlying objects.';
     return;
   }
+
+  const latestApproval = (item.approvals || [])[0] || null;
+  const latestArtifact = item.artifact || null;
+  const nextStep = item.status === 'awaiting-approval'
+    ? 'Waiting for an approval decision before work can continue.'
+    : item.status === 'blocked'
+      ? 'Blocked until a human changes or reopens the request.'
+      : 'Continue normal workflow progression under the current owner.';
 
   currentCase.innerHTML = `
     <h2>Current Focus</h2>
@@ -120,64 +135,32 @@ function renderRequestDetail(item) {
     <div class="meta">
       <span class="tag">owner: ${item.actualOwner}</span>
       <span class="tag ${statusTag(item.status)}">${item.status}</span>
-    </div>
-    <div class="meta">
       <span class="tag">class: ${item.actualClassification}</span>
-      <span class="tag">trace: ${item.traceCount || 0}</span>
     </div>
   `;
 
-  requestDetail.innerHTML = `
+  requestSummary.innerHTML = `
     <p>${item.input}</p>
-    <div class="meta">
-      <span class="tag">class: ${item.actualClassification}</span>
-      <span class="tag">owner: ${item.actualOwner}</span>
-      <span class="tag ${statusTag(item.status)}">status: ${item.status}</span>
-    </div>
     <div class="detail-grid">
-      <div class="detail-box">
-        <div class="label">Request ID</div>
-        <div>${item.id}</div>
-      </div>
-      <div class="detail-box">
-        <div class="label">Source</div>
-        <div>${item.source || 'unknown'}</div>
-      </div>
-      <div class="detail-box">
-        <div class="label">Trace Events</div>
-        <div>${item.traceCount || 0}</div>
-      </div>
-      <div class="detail-box">
-        <div class="label">Approvals</div>
-        <div>${(item.approvals || []).length}</div>
-      </div>
+      <div class="detail-box"><div class="label">Request ID</div><div>${item.id}</div></div>
+      <div class="detail-box"><div class="label">Source</div><div>${item.source || 'unknown'}</div></div>
+      <div class="detail-box"><div class="label">Classification</div><div>${item.actualClassification}</div></div>
+      <div class="detail-box"><div class="label">Current Owner</div><div>${item.actualOwner}</div></div>
+      <div class="detail-box"><div class="label">Status</div><div>${item.status}</div></div>
+      <div class="detail-box"><div class="label">Trace Events</div><div>${item.traceCount || 0}</div></div>
     </div>
   `;
 
-  const latestApproval = (item.approvals || [])[0] || null;
-  const latestArtifact = item.artifact || null;
-  dataObjectsPanel.innerHTML = `
-    <div class="data-object">
-      <strong>Request Object</strong>
-      <pre class="raw-json">${escapeHtml(JSON.stringify(item, null, 2))}</pre>
-    </div>
-    <div class="data-object">
-      <strong>Approval Object</strong>
-      <pre class="raw-json">${escapeHtml(JSON.stringify(latestApproval, null, 2))}</pre>
-    </div>
-    <div class="data-object">
-      <strong>Artifact Object</strong>
-      <pre class="raw-json">${escapeHtml(JSON.stringify(latestArtifact, null, 2))}</pre>
-    </div>
-    <div class="data-object">
-      <strong>Trace Payloads</strong>
-      <pre class="raw-json">${escapeHtml(JSON.stringify(item.trace || [], null, 2))}</pre>
+  workflowState.innerHTML = `
+    <div class="detail-grid">
+      <div class="detail-box"><div class="label">Current State</div><div>${item.status}</div></div>
+      <div class="detail-box"><div class="label">Pending Approval</div><div>${latestApproval && latestApproval.status === 'pending' ? 'Yes' : 'No'}</div></div>
+      <div class="detail-box"><div class="label">Blocker</div><div>${item.status === 'awaiting-approval' ? 'Approval required' : item.status === 'blocked' ? 'Request blocked' : 'None'}</div></div>
+      <div class="detail-box"><div class="label">Next Step</div><div>${nextStep}</div></div>
     </div>
   `;
-}
 
-function renderTrace(item) {
-  const trace = item?.trace || [];
+  const trace = item.trace || [];
   traceDetail.innerHTML = trace.length ? trace.map((entry) => {
     const kind = entry.type.includes('approval') ? 'approval' : entry.type.includes('blocked') ? 'blocked' : entry.type.includes('resolved') ? 'resolved' : '';
     return `
@@ -190,6 +173,35 @@ function renderTrace(item) {
       </div>
     `;
   }).join('') : '<p>No trace events available.</p>';
+
+  artifactSummary.innerHTML = latestArtifact ? `
+    <div class="artifact-row">
+      <strong>${latestArtifact.type}</strong>
+      <div class="meta">
+        <span class="tag">owner: ${latestArtifact.owner}</span>
+        <span class="tag">created: ${new Date(latestArtifact.createdAt).toLocaleTimeString()}</span>
+      </div>
+    </div>
+  ` : '<p>No artifacts linked to this request yet.</p>';
+
+  dataObjectsPanel.innerHTML = `
+    <details class="raw-object">
+      <summary class="raw-summary">Request Object JSON</summary>
+      <pre class="raw-json">${escapeHtml(JSON.stringify(item, null, 2))}</pre>
+    </details>
+    <details class="raw-object">
+      <summary class="raw-summary">Approval Object JSON</summary>
+      <pre class="raw-json">${escapeHtml(JSON.stringify(latestApproval, null, 2))}</pre>
+    </details>
+    <details class="raw-object">
+      <summary class="raw-summary">Artifact Object JSON</summary>
+      <pre class="raw-json">${escapeHtml(JSON.stringify(latestArtifact, null, 2))}</pre>
+    </details>
+    <details class="raw-object">
+      <summary class="raw-summary">Trace Payload JSON</summary>
+      <pre class="raw-json">${escapeHtml(JSON.stringify(trace, null, 2))}</pre>
+    </details>
+  `;
 }
 
 function escapeHtml(text) {
@@ -223,8 +235,8 @@ async function animateRoute(route) {
 
 async function renderActive(item) {
   selectedRequestId = item.id;
-  renderRequestDetail(item);
-  renderTrace(item);
+  renderInspector(item);
+  renderApprovals();
   queue = [{ input: item.input }];
   renderQueue();
   await animateRoute(item.route || []);
@@ -266,7 +278,6 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
   queue = [];
   renderHistory();
   renderQueue();
-  renderApprovals();
   renderAgentStatus();
 
   summary.innerHTML = `
@@ -277,7 +288,7 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
 
   results.innerHTML = data.requests.map((item) => `
     <article class="card request-card" data-request-id="${item.id}">
-      <h2>${item.input}</h2>
+      <h3>${item.input}</h3>
       <div class="meta">
         <span class="tag">${item.actualClassification}</span>
         <span class="tag">${item.actualOwner}</span>
@@ -287,8 +298,8 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
   `).join('');
 
   const selected = cases.find((item) => item.id === selectedRequestId) || cases[0] || null;
-  renderRequestDetail(selected);
-  renderTrace(selected);
+  renderInspector(selected);
+  renderApprovals();
   renderRuntimeStrip(data);
   highlightSelectedRequest();
 }
