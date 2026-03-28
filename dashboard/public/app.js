@@ -28,11 +28,13 @@ const topologyWrap = document.getElementById('topologyWrap');
 let cases = [];
 let approvals = [];
 let activeIndex = 0;
-let intervalId;
+let playbackTimer = null;
 let history = [];
 let currentMode = 'visual';
 let selectedRequestId = null;
 let playbackPaused = false;
+let stageIndexByRequest = new Map();
+let autoAdvanceBusy = false;
 
 function statusTag(status) {
   return `status-${status}`;
@@ -54,42 +56,74 @@ function clearActive() {
   pulseDot.style.opacity = 0;
 }
 
-function workflowModel(item) {
-  const systemNode = item.actualClassification === 'support-issue'
-    ? 'VPN System'
-    : item.actualClassification === 'access-request'
-      ? 'Identity Provider'
-      : item.actualClassification === 'incident'
-        ? 'Internal App'
-        : 'Target System';
-
-  const ownerNode = item.actualOwner ? item.actualOwner.replaceAll('-', ' ') : 'Owner';
-  const approvalNode = item.status === 'awaiting-approval' ? 'Approval Gate' : null;
-  const artifactNode = item.artifact?.type ? item.artifact.type.replaceAll('-', ' ') : 'Artifact';
-
-  const stages = [
-    'Request Queue',
-    'Helpdesk Lead',
-    ownerNode,
-    approvalNode,
-    systemNode,
-    artifactNode
-  ].filter(Boolean);
-
-  let currentIndex = 2;
-  if (item.status === 'awaiting-approval' && approvalNode) currentIndex = stages.indexOf('Approval Gate');
-  else if (item.status === 'blocked') currentIndex = approvalNode ? stages.indexOf('Approval Gate') : 2;
-  else if (item.status === 'in-progress') currentIndex = stages.indexOf(systemNode);
-  else if (item.status === 'classified') currentIndex = 2;
-
-  return { stages, currentIndex, systemNode, approvalNode, artifactNode };
+function prettifyNodeName(value) {
+  return value.replaceAll('-', ' ');
 }
 
-function renderFlow(item) {
+function workflowModel(item) {
+  const classification = item.actualClassification || 'request';
+  const ownerNode = item.actualOwner ? prettifyNodeName(item.actualOwner) : 'Assigned Owner';
+  const systemNode = classification === 'support-issue'
+    ? 'VPN System'
+    : classification === 'access-request'
+      ? 'Identity Provider'
+      : classification === 'incident'
+        ? 'Internal App'
+        : 'Target System';
+  const specialistNode = classification === 'support-issue'
+    ? 'VPN Specialist'
+    : classification === 'access-request'
+      ? 'IAM Specialist'
+      : classification === 'incident'
+        ? 'Incident Triage'
+        : null;
+  const approvalNode = item.status === 'awaiting-approval' || (item.approvals || []).length
+    ? 'Approval Gate'
+    : null;
+  const artifactNode = item.artifact?.type ? prettifyNodeName(item.artifact.type) : 'Artifact';
+
+  const stages = [
+    { label: 'Request Queue', type: 'queue', nodeId: null },
+    { label: 'Helpdesk Lead', type: 'agent', nodeId: 'helpdesk-lead' },
+    { label: ownerNode, type: 'owner', nodeId: item.actualOwner || null },
+    specialistNode && specialistNode !== ownerNode
+      ? { label: specialistNode, type: 'specialist', nodeId: specialistNode.toLowerCase().replaceAll(' ', '-') }
+      : null,
+    approvalNode ? { label: approvalNode, type: 'approval', nodeId: 'security-director' } : null,
+    { label: systemNode, type: 'system', nodeId: classification === 'support-issue' ? 'vpn-system' : classification === 'access-request' ? 'idp-system' : classification === 'incident' ? 'internal-app' : null },
+    { label: artifactNode, type: 'artifact', nodeId: null }
+  ].filter(Boolean);
+
+  const defaultCurrent = stages.findIndex((stage) => stage.type === 'owner');
+  let currentIndex = defaultCurrent === -1 ? 0 : defaultCurrent;
+  if (item.status === 'awaiting-approval') {
+    const idx = stages.findIndex((stage) => stage.type === 'approval');
+    if (idx !== -1) currentIndex = idx;
+  } else if (item.status === 'in-progress') {
+    const idx = stages.findIndex((stage) => stage.type === 'system');
+    if (idx !== -1) currentIndex = idx;
+  }
+  return { stages, currentIndex };
+}
+
+function getStageIndex(item) {
+  const model = workflowModel(item);
+  const saved = stageIndexByRequest.get(item.id);
+  if (typeof saved === 'number') return Math.max(0, Math.min(saved, model.stages.length - 1));
+  return model.currentIndex;
+}
+
+function setStageIndex(item, index) {
+  const model = workflowModel(item);
+  stageIndexByRequest.set(item.id, Math.max(0, Math.min(index, model.stages.length - 1)));
+}
+
+function renderFlow(item, stageIndexOverride = null) {
   const { stages, currentIndex } = workflowModel(item);
+  const stageIndex = stageIndexOverride ?? currentIndex;
   flowPipeline.innerHTML = stages.map((step, index) => {
-    const state = index < currentIndex ? 'completed' : index === currentIndex ? 'current' : 'upcoming';
-    return `${index > 0 ? '<span class="flow-arrow">→</span>' : ''}<div class="flow-step ${state}">${step}</div>`;
+    const state = index < stageIndex ? 'completed' : index === stageIndex ? 'current' : 'upcoming';
+    return `${index > 0 ? '<span class="flow-arrow">→</span>' : ''}<div class="flow-step ${state}">${step.label}</div>`;
   }).join('');
 }
 
@@ -157,7 +191,7 @@ function renderAgentStatus() {
   `;
 }
 
-function renderVisualState(item) {
+function renderVisualState(item, stageIndexOverride = null) {
   if (!item) {
     currentCase.innerHTML = 'No active request selected.';
     ticketStatePanel.innerHTML = 'No current ticket state.';
@@ -166,18 +200,15 @@ function renderVisualState(item) {
     return;
   }
 
-  const nextStep = item.status === 'awaiting-approval'
-    ? 'Approval decision required before work continues.'
-    : item.status === 'blocked'
-      ? 'Human intervention needed to unblock this request.'
-      : item.status === 'in-progress'
-        ? 'Current owner continues work toward the target system or output.'
-        : 'Routing and ownership have been established.';
+  const model = workflowModel(item);
+  const stageIndex = stageIndexOverride ?? getStageIndex(item);
+  const currentStage = model.stages[stageIndex]?.label || 'Unknown Stage';
+  const nextStage = model.stages[stageIndex + 1]?.label || 'Workflow complete';
 
   currentCase.innerHTML = `
     <h2>Current Focus</h2>
     <div class="focus-title">${item.input}</div>
-    <p class="muted">This is the active request being traced through the workflow right now.</p>
+    <p class="muted">This request is stepping through each workflow process one phase at a time.</p>
     <div class="meta">
       <span class="tag">owner: ${item.actualOwner}</span>
       <span class="tag ${statusTag(item.status)}">${item.status}</span>
@@ -190,16 +221,20 @@ function renderVisualState(item) {
     <div class="detail-grid">
       <div class="detail-box"><div class="label">Current Status</div><div>${item.status}</div></div>
       <div class="detail-box"><div class="label">Current Owner</div><div>${item.actualOwner}</div></div>
-      <div class="detail-box"><div class="label">Current Step</div><div>${workflowModel(item).stages[workflowModel(item).currentIndex]}</div></div>
-      <div class="detail-box"><div class="label">Next Step</div><div>${nextStep}</div></div>
+      <div class="detail-box"><div class="label">Current Step</div><div>${currentStage}</div></div>
+      <div class="detail-box"><div class="label">Next Step</div><div>${nextStage}</div></div>
     </div>
   `;
 
   workflowActivityPanel.innerHTML = `
     <h2>Workflow Activity</h2>
     <div class="history-entry">
-      <strong>Now</strong>
-      <div class="meta"><span class="tag">${item.actualOwner}</span><span class="tag ${statusTag(item.status)}">${item.status}</span></div>
+      <strong>Active Phase</strong>
+      <div class="meta"><span class="tag">${currentStage}</span></div>
+    </div>
+    <div class="history-entry">
+      <strong>Up Next</strong>
+      <div class="meta"><span class="tag">${nextStage}</span></div>
     </div>
     ${(item.trace || []).slice(-3).map((entry) => `
       <div class="history-entry">
@@ -209,7 +244,7 @@ function renderVisualState(item) {
     `).join('')}
   `;
 
-  renderFlow(item);
+  renderFlow(item, stageIndex);
 }
 
 function renderInspector(item) {
@@ -311,25 +346,28 @@ function movePulseToNode(node) {
   pulseDot.style.opacity = 1;
 }
 
-async function animateRoute(route) {
+async function animateStage(item, stageIndex) {
   clearActive();
-  for (const nodeId of route || []) {
-    const node = document.querySelector(`[data-node="${nodeId}"]`);
-    if (!node) continue;
-    node.classList.add('active');
-    node.classList.add('processing');
-    movePulseToNode(node);
-    await new Promise((resolve) => setTimeout(resolve, 420));
-    node.classList.remove('processing');
-  }
+  const { stages } = workflowModel(item);
+  const stage = stages[stageIndex];
+  if (!stage?.nodeId) return;
+  const node = document.querySelector(`[data-node="${stage.nodeId}"]`);
+  if (!node) return;
+  node.classList.add('active');
+  node.classList.add('processing');
+  movePulseToNode(node);
+  await new Promise((resolve) => setTimeout(resolve, 320));
+  node.classList.remove('processing');
 }
 
-async function renderActive(item) {
+async function renderActive(item, stageIndexOverride = null) {
   selectedRequestId = item.id;
-  renderVisualState(item);
+  const stageIndex = stageIndexOverride ?? getStageIndex(item);
+  renderVisualState(item, stageIndex);
   renderInspector(item);
   renderApprovals();
-  await animateRoute(item.route || []);
+  renderAgentStatus();
+  await animateStage(item, stageIndex);
   const alreadySeen = history.some((entry) => entry.id === item.id);
   if (!alreadySeen) {
     history = [item, ...history].slice(0, 8);
@@ -344,8 +382,18 @@ function highlightSelectedRequest() {
   });
 }
 
+function runtimeSummaryData() {
+  return {
+    totalRequests: cases.length,
+    totalArtifacts: cases.filter((item) => item.artifact).length,
+    awaitingApproval: approvals.filter((a) => a.status === 'pending').length,
+  };
+}
+
 function renderRuntimeStrip(data) {
   const selected = cases.find((item) => item.id === selectedRequestId) || cases[0];
+  const stageInfo = selected ? workflowModel(selected) : null;
+  const stageIndex = selected ? getStageIndex(selected) : null;
   runtimeStrip.innerHTML = `
     <div class="meta">
       <span class="tag">mode: ${currentMode === 'visual' ? 'visual playback' : 'inspection'}</span>
@@ -354,8 +402,9 @@ function renderRuntimeStrip(data) {
       <span class="tag">pending approvals: ${data.summary.awaitingApproval}</span>
       <span class="tag">artifacts: ${data.summary.totalArtifacts}</span>
       ${selected ? `<span class="tag">focus: ${selected.actualClassification} -> ${selected.actualOwner}</span>` : ''}
+      ${selected && stageInfo ? `<span class="tag">stage ${stageIndex + 1}/${stageInfo.stages.length}</span>` : ''}
     </div>
-    <p class="muted" style="margin-top:12px; margin-bottom:0;">This dashboard is currently showing seeded demo/runtime state with live updates layered on top.</p>
+    <p class="muted" style="margin-top:12px; margin-bottom:0;">Playback now advances process-by-process inside each request before moving to the next one.</p>
   `;
 }
 
@@ -365,7 +414,6 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
   if (!preserveHistory) history = [];
   renderHistory();
   renderQueue();
-  renderAgentStatus();
 
   summary.innerHTML = `
     <div class="summary-card"><div class="label">Requests</div><div class="value">${data.summary.totalRequests}</div></div>
@@ -387,53 +435,73 @@ function applyRuntimeData(data, { preserveHistory = false } = {}) {
   inspectorRequestList.innerHTML = cardsHtml;
 
   const selected = cases.find((item) => item.id === selectedRequestId) || cases[0] || null;
-  renderVisualState(selected);
-  renderInspector(selected);
-  renderApprovals();
+  if (selected) {
+    if (!stageIndexByRequest.has(selected.id)) setStageIndex(selected, workflowModel(selected).currentIndex);
+    renderVisualState(selected, getStageIndex(selected));
+    renderInspector(selected);
+    renderApprovals();
+    renderAgentStatus();
+  }
   renderRuntimeStrip(data);
   highlightSelectedRequest();
 }
 
-async function stepPlayback() {
-  if (!cases.length) return;
+async function stepWorkflow() {
+  if (!cases.length || autoAdvanceBusy) return;
+  autoAdvanceBusy = true;
   const item = cases[activeIndex];
-  await renderActive(item);
-  activeIndex = (activeIndex + 1) % cases.length;
+  const model = workflowModel(item);
+  const currentStageIndex = getStageIndex(item);
+  await renderActive(item, currentStageIndex);
+
+  if (currentStageIndex < model.stages.length - 1) {
+    setStageIndex(item, currentStageIndex + 1);
+  } else {
+    setStageIndex(item, 0);
+    activeIndex = (activeIndex + 1) % cases.length;
+    const nextItem = cases[activeIndex];
+    if (nextItem && !stageIndexByRequest.has(nextItem.id)) {
+      setStageIndex(nextItem, 0);
+    }
+  }
+
+  renderRuntimeStrip({ summary: runtimeSummaryData() });
+  autoAdvanceBusy = false;
 }
 
-function startPlayback() {
-  if (intervalId) clearInterval(intervalId);
-  if (!cases.length || playbackPaused) return;
-
-  stepPlayback();
-  intervalId = setInterval(() => {
-    if (!playbackPaused) stepPlayback();
-  }, 3600);
+function schedulePlayback() {
+  if (playbackTimer) clearTimeout(playbackTimer);
+  if (playbackPaused || !cases.length) return;
+  playbackTimer = setTimeout(async function tick() {
+    await stepWorkflow();
+    schedulePlayback();
+  }, 1800);
 }
 
 function pausePlayback() {
   playbackPaused = true;
-  if (intervalId) clearInterval(intervalId);
-  renderRuntimeStrip({ summary: { totalRequests: cases.length, totalArtifacts: cases.filter(Boolean).length, awaitingApproval: approvals.filter((a) => a.status === 'pending').length } });
+  if (playbackTimer) clearTimeout(playbackTimer);
+  renderRuntimeStrip({ summary: runtimeSummaryData() });
 }
 
 function resumePlayback() {
   if (!playbackPaused) return;
   playbackPaused = false;
-  startPlayback();
-  renderRuntimeStrip({ summary: { totalRequests: cases.length, totalArtifacts: cases.filter(Boolean).length, awaitingApproval: approvals.filter((a) => a.status === 'pending').length } });
+  schedulePlayback();
+  renderRuntimeStrip({ summary: runtimeSummaryData() });
 }
 
 async function load({ reset = false } = {}) {
   if (reset) {
     await fetch('/api/runtime/reset-from-tests', { method: 'POST' });
+    stageIndexByRequest = new Map();
   }
 
   const res = await fetch('/api/runtime');
   const data = await res.json();
   applyRuntimeData(data);
   activeIndex = 0;
-  startPlayback();
+  schedulePlayback();
 }
 
 function connectEventStream() {
@@ -444,6 +512,7 @@ function connectEventStream() {
   });
   source.addEventListener('runtime.reset', (event) => {
     const data = JSON.parse(event.data);
+    stageIndexByRequest = new Map();
     applyRuntimeData(data);
   });
   source.addEventListener('approval.updated', (event) => {
@@ -465,25 +534,28 @@ document.addEventListener('click', (event) => {
   if (!card) return;
   const item = cases.find((entry) => entry.id === card.dataset.requestId);
   if (item) {
+    if (!stageIndexByRequest.has(item.id)) setStageIndex(item, 0);
     if (card.closest('#inspectionModeView')) setMode('inspect');
     pausePlayback();
-    renderActive(item);
+    selectedRequestId = item.id;
+    activeIndex = cases.findIndex((entry) => entry.id === item.id);
+    renderActive(item, getStageIndex(item));
   }
 });
 
 modeVisualBtn.addEventListener('click', () => {
   setMode('visual');
-  renderRuntimeStrip({ summary: { totalRequests: cases.length, totalArtifacts: cases.filter(Boolean).length, awaitingApproval: approvals.filter((a) => a.status === 'pending').length } });
+  renderRuntimeStrip({ summary: runtimeSummaryData() });
 });
 modeInspectBtn.addEventListener('click', () => {
   setMode('inspect');
-  renderRuntimeStrip({ summary: { totalRequests: cases.length, totalArtifacts: cases.filter(Boolean).length, awaitingApproval: approvals.filter((a) => a.status === 'pending').length } });
+  renderRuntimeStrip({ summary: runtimeSummaryData() });
 });
 pauseBtn.addEventListener('click', pausePlayback);
 resumeBtn.addEventListener('click', resumePlayback);
 stepBtn.addEventListener('click', async () => {
   pausePlayback();
-  await stepPlayback();
+  await stepWorkflow();
 });
 refreshBtn.addEventListener('click', () => load({ reset: true }));
 connectEventStream();
