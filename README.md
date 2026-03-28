@@ -13,8 +13,9 @@ This repo currently combines:
 - org and workflow design
 - role-based agent specs
 - request routing prototypes
-- test scenarios
-- a local dashboard for visualizing request flow across requests, agents, and systems
+- scenario tests
+- a local dashboard
+- an early API/runtime spine for request, trace, artifact, and approval state
 
 ## Why this project exists
 
@@ -47,8 +48,6 @@ This repository demonstrates how to translate real-world IT / operations concept
 
 ## Current implementation
 
-The project has moved beyond docs-only planning into an active prototype layer.
-
 Implemented now:
 
 - public-safe IT org model and team structure
@@ -59,21 +58,9 @@ Implemented now:
 - normalized runtime prompts
 - a prototype request router
 - router test corpus and test harness
-- a local dashboard that visualizes scenario routing, ownership, queue flow, affected systems, and generated artifacts
-
-## Demo experience
-
-The dashboard is intended to make the model understandable in seconds.
-
-Current dashboard behavior includes:
-
-- scenario playback from the request corpus
-- animated request routing across the topology
-- request queue and scenario history
-- ownership and escalation visibility
-- system involvement visibility
-- generated artifact panel
-- pass/fail comparison against expected outcomes
+- a local dashboard with visual and inspection modes
+- an early API/runtime spine for request state, traces, artifacts, approvals, and live updates
+- a controlled access-request workflow slice
 
 ## What is simulated vs real
 
@@ -81,15 +68,16 @@ Current dashboard behavior includes:
 
 - routing is still prototype-grade and intentionally simple
 - backend systems are represented visually, not integrated
-- queue/history/artifact behavior is demo-state, not production telemetry
-- the dashboard is a local visualization layer, not a live enterprise console
+- runtime data is still seeded from local scenarios for demoability
+- the dashboard is still a local prototype surface, not a production operations console
 
 ### Real right now
 
 - the operating model and boundaries are explicit
 - workflows and role definitions are concrete
 - routing behavior is testable
-- request outcomes are inspectable
+- request, trace, artifact, and approval state exist in runtime form
+- request status changes can be visualized and inspected
 - the prototype can be run locally and demonstrated visually
 
 ## What this is not
@@ -104,41 +92,49 @@ This repository is **not** claiming:
 The goal is not to oversell autonomy.
 The goal is to prototype a more realistic, observable, and bounded approach to AI-assisted operations.
 
-## Repository goals
+## Run the prototype
 
-This repository is intended to become:
-
-- a public reference for AI-assisted IT operating models
-- a proof-oriented prototype for routing and orchestration ideas
-- a clear showcase of systems thinking and workflow design
-- a base for future runtime, evaluation, and visualization work
-
-## Run the dashboard
+### Dashboard
 
 ```bash
 npm install
 npm run dashboard
 ```
 
-Then open:
+Open:
 
 - `http://localhost:4411`
 
+### API
+
+```bash
+npm run api
+```
+
+Open:
+
+- `http://localhost:4412/api/health`
+
+### Router tests
+
+```bash
+npm run test:router
+```
+
 ## Suggested demo flow
 
-A simple walkthrough:
-
-1. Show the topology view: systems on the left, agents in the middle, requests on the right
-2. Let the scenario queue animate into the routing flow
-3. Show how ownership changes based on request type
-4. Show affected systems lighting up
-5. Show generated artifacts and pass/fail expectations
-6. Explain what is implemented today vs what remains simulated
+1. Start in Visual Mode
+2. Show the topology view: systems on the left, agents in the middle, requests on the right
+3. Let the request flow animate into ownership and system involvement
+4. Show pending approvals and current focus in the runtime strip
+5. Switch to Inspection Mode
+6. Show selected request details, trace timeline, and approval state
+7. Explain what is implemented today versus what remains simulated
 
 ## Project structure
 
-- `docs/` — vision, org structure, workflows, boundaries, evaluation, templates, and runtime/system design notes
-- `api/` — early runtime spine for request state, traces, artifacts, and workflow endpoints
+- `docs/` — vision, workflows, boundaries, evaluation, system design notes, and phase summaries
+- `api/` — early runtime spine for request state, traces, artifacts, approvals, and workflow endpoints
 - `agents/` — agent role specs
 - `runtime/` — prompt and router prototype layer
 - `tests/` — request corpus and router tests
@@ -162,4 +158,5 @@ A simple walkthrough:
 
 ## Status
 
-Active prototype phase.
+Current phase complete as a strong prototype iteration.
+See `docs/current-state.md` for a cleaner phase summary and recommended next directions.
