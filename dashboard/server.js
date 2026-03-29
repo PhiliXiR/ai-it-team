@@ -60,6 +60,15 @@ async function api(pathname, options = {}) {
   return res.json();
 }
 
+async function checkBackendHealth() {
+  try {
+    await api('/api/health');
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: String(error) };
+  }
+}
+
 async function createRequestFromCase(testCase) {
   const input = testCase.input.toLowerCase();
   const payload = {
@@ -435,12 +444,48 @@ async function buildRuntimePayload() {
   };
 }
 
+function backendUnavailablePayload(error) {
+  return {
+    backendAvailable: false,
+    error: String(error),
+    summary: {
+      totalRequests: 0,
+      classifiedRequests: 0,
+      totalArtifacts: 0,
+      awaitingApproval: 0
+    },
+    approvals: [],
+    requests: []
+  };
+}
+
 app.get('/api/runtime', async (_req, res) => {
+  const health = await checkBackendHealth();
+  if (!health.ok) {
+    res.status(503).json(backendUnavailablePayload(health.error));
+    return;
+  }
+
   try {
     res.json(await buildRuntimePayload());
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }
+});
+
+app.get('/api/runtime/status', async (_req, res) => {
+  const health = await checkBackendHealth();
+  if (!health.ok) {
+    res.status(503).json({
+      ok: false,
+      pythonApiBase: PYTHON_API_BASE,
+      error: health.error,
+      message: 'Python backend is not reachable. Start it with `npm run api:python` before opening the dashboard.'
+    });
+    return;
+  }
+
+  res.json({ ok: true, pythonApiBase: PYTHON_API_BASE });
 });
 
 app.get('/api/events/stream', async (req, res) => {
@@ -450,7 +495,12 @@ app.get('/api/events/stream', async (req, res) => {
   res.flushHeaders?.();
 
   clients.add(res);
-  res.write(`event: snapshot\ndata: ${JSON.stringify(await buildRuntimePayload())}\n\n`);
+  const health = await checkBackendHealth();
+  if (!health.ok) {
+    res.write(`event: backend.unavailable\ndata: ${JSON.stringify({ ok: false, message: 'Python backend is not reachable. Start it with `npm run api:python`.', error: health.error })}\n\n`);
+  } else {
+    res.write(`event: snapshot\ndata: ${JSON.stringify(await buildRuntimePayload())}\n\n`);
+  }
 
   req.on('close', () => {
     clients.delete(res);
@@ -458,6 +508,12 @@ app.get('/api/events/stream', async (req, res) => {
 });
 
 app.post('/api/runtime/reset-from-tests', async (_req, res) => {
+  const health = await checkBackendHealth();
+  if (!health.ok) {
+    res.status(503).json({ ok: false, error: health.error, message: 'Python backend is not reachable. Start it with `npm run api:python`.' });
+    return;
+  }
+
   if (fs.existsSync(seedStatePath)) fs.unlinkSync(seedStatePath);
   const payload = await buildRuntimePayload();
   sendEvent('runtime.reset', payload);
