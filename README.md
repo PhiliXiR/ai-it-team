@@ -1,12 +1,68 @@
 # ai-it-team
 
-An exploration of how AI agents might assist parts of IT support and service workflows.
+ai-it-team is the lab where I explored AI-assisted IT workflows, request routing, approvals, traces, and human-readable control surfaces.
+
+TrustPlane is the clearer control-plane direction that emerged from this work.
+
+## What works today
+
+- Prototype request router with a request corpus and router tests
+- Local dashboard with visual mode, inspection mode, reversible timeline playback, and workflow/human/execution views
+- Runtime-backed request state with trace, artifact, and approval objects plus one controlled workflow slice
+
+## What is simulated today
+
+- Backend systems are represented rather than integrated with real infrastructure
+- Many timeline/traces are seeded to make the system legible and demoable
+- Workflow coverage is still selective rather than broad or production-realistic
+
+## What I am building next
+
+- Small focused workflow slices that answer sharper learning questions
+- Cleaner bridges between this lab work and the more operator-facing TrustPlane direction
+- Better visual proof and demoability for the implemented runtime/control concepts
+
+## Why this matters
+
+ai-it-team is useful because it makes the control problem in AI-assisted IT work visible.
+The interesting part is not just whether a model can classify a request. It is whether routing, ownership, approvals, traces, human checkpoints, and execution work can be represented in a way that feels inspectable instead of magical.
+
+## Demo surface
+
+### Screenshots / demo assets
+
+_Add screenshots or GIFs here._
+
+Recommended captures:
+
+1. **Visual mode** — request flow and current focus
+2. **Timeline playback** — workflow phase progression with back/step/pause controls
+3. **Inspection mode** — request inspector, human involvement, and execution trace
+
+## 5-minute demo path
+
+1. Install deps and start the Python backend:
+   ```bash
+   npm install
+   npm run api:python
+   ```
+2. In a second terminal, start the dashboard:
+   ```bash
+   npm run dashboard
+   ```
+3. Open `http://localhost:4411`
+4. Start in **Visual Mode**
+5. Select a seeded request and use **Step / Back / Pause / Resume** to walk through the timeline
+6. Show **Current Focus**, **Current Workflow**, and the **Phase Timeline**
+7. Open **Human Involvement** and **Execution Trace**
+8. Switch to **Inspection Mode** and inspect request details, approvals, artifacts, and raw objects
+9. Compare what is implemented now versus what remains seeded/simulated
 
 ## What this is
 
-`ai-it-team` is an educational experiment.
+`ai-it-team` is an educational experiment and public prototype.
 
-The point of the project is to explore how agentic or AI-assisted systems might help with things like:
+It explores how AI-assisted systems might help with things like:
 
 - request routing
 - ownership and handoffs
@@ -17,20 +73,12 @@ The point of the project is to explore how agentic or AI-assisted systems might 
 - human checkpoints and trust boundaries
 - human-readable playback of workflow state over time
 
-This is not being treated as a finished product or startup.
-It is a sandbox for thinking through how AI might fit into IT support and service operations in a more structured way.
+It is **not**:
 
-## What this project is currently exploring
-
-Right now the main questions are:
-
-- what is the right unit of work for an AI-assisted IT workflow?
-- where should routing be rule-based versus AI-assisted?
-- what state should be explicit and inspectable?
-- what should require approval, clarification, human takeover, or human execution?
-- what should be visible in a runtime or dashboard view?
-- how do role boundaries help keep agent behavior legible?
-- how should actual backend execution work be represented?
+- production-ready IT automation
+- autonomous IT operations
+- live control over real infrastructure
+- a fully fledged product
 
 ## What exists right now
 
@@ -43,38 +91,14 @@ The project currently includes:
 - a local dashboard with visual and inspection modes
 - an early API/runtime spine
 - request, trace, artifact, and approval objects
-- the beginnings of a human-facing Request Inspector view in dashboard inspection mode
+- the beginnings of a human-facing Request Inspector view
 - one controlled access-request workflow slice
 - timeline-style playback of workflow, human, and execution steps
 - seeded demo scenarios that emphasize trust checkpoints and action traces
 
-## What this is not
-
-This repository is **not** claiming:
-
-- production-ready IT automation
-- autonomous IT operations
-- live control over real infrastructure
-- a fully fledged product
-
-It is better understood as a lab project / public prototype / learning vehicle.
-
-## Current learning value
-
-This project is helping explore:
-
-- how agent systems differ from one-off model calls
-- how routing, ownership, and handoffs might work
-- where approvals, clarification loops, and human takeovers become important
-- what makes a workflow feel inspectable instead of magical
-- how much of the system is really the model versus the control layer around it
-- how to make trust boundaries and concrete execution work legible in a runtime UI
-
 ## How to run it
 
-### Recommended dashboard flow
-
-Start the Python backend first:
+### Recommended backend + dashboard flow
 
 ```bash
 npm install
@@ -88,11 +112,9 @@ npm run dashboard
 ```
 
 Open:
-
 - `http://localhost:4411`
 
 Python API health:
-
 - `http://127.0.0.1:4413/api/health`
 
 ### Node API (older parallel runtime path)
@@ -101,8 +123,7 @@ Python API health:
 npm run api
 ```
 
-Open:
-
+Node API health:
 - `http://localhost:4412/api/health`
 
 ### Router tests
@@ -111,74 +132,40 @@ Open:
 npm run test:router
 ```
 
-## Suggested demo flow
-
-1. Start in Visual Mode
-2. Select a request and use **Step / Back / Pause / Resume** to walk through the request timeline
-3. Show how **Current Focus** updates every timeline step
-4. Show **Current Workflow** as the high-level path
-5. Show **Phase Timeline** as the detailed playback spine
-6. Show **Human Involvement** for approvals, clarification, takeover, or human execution
-7. Show **Execution Trace** for concrete backend work inside the target system
-8. Switch to Inspection Mode
-9. Show selected request details, trace timeline, approval state, artifacts, and raw objects
-10. Explain what is implemented today versus what remains seeded or simulated
-
-## Current reality
-
-### Implemented now
-
-- role and workflow structure
-- prototype routing
-- local tests
-- runtime-backed request state
-- trace, artifact, and approval records
-- local dashboard and inspection view
-- one controlled workflow slice
-- reversible seeded playback across workflow, human, and execution steps
-
-### Still simulated
-
-- routing is still intentionally simple
-- backend systems are represented, not integrated
-- runtime state is still seeded from local scenarios for demoability
-- trace/event playback is partly synthetic to support explanation and inspection
-- broader workflow coverage is incomplete
-- this is not yet a real deployed operational system
-
 ## Current project structure
 
-- `docs/` — design notes, workflow docs, experiment framing, and migration ideas
-- `api/` — early runtime spine for request state, traces, artifacts, approvals, and workflow endpoints
-- `backend/` — FastAPI runtime prototype used by the current dashboard flow
-- `agents/` — role specs
-- `runtime/` — router and prompt prototype layer
-- `tests/` — request corpus and router tests
-- `dashboard/` — local visualization and inspection layer
+- `docs/` - design notes, workflow docs, experiment framing, and migration ideas
+- `api/` - early runtime spine for request state, traces, artifacts, approvals, and workflow endpoints
+- `backend/` - FastAPI runtime prototype used by the current dashboard flow
+- `agents/` - role specs
+- `runtime/` - router and prompt prototype layer
+- `tests/` - request corpus and router tests
+- `dashboard/` - local visualization and inspection layer
 
-## Next experiments
+## Relationship to TrustPlane
 
-The next useful experiments are likely to be small and focused, for example:
+`ai-it-team` is the earlier lab/exploration.
 
-- tighten the playback model so traces, execution work, and human checkpoints line up even more cleanly
-- refine request schema and routing clarity around missing context and ambiguity
-- test one additional workflow slice with clearer human checkpoints
-- test what a live intake bot should actually ask before routing
-
-## Status
-
-Good experimental progress.
-
-The dashboard is now most useful as a way to inspect:
-
-- workflow motion
-- trust boundaries
+It is where the structure around:
+- routing
+- approvals
+- traces
+- workflow playback
 - human involvement
-- execution work
-- explainability of the control layer
+- inspectable operational state
 
-See:
+became concrete enough to suggest a sharper follow-on direction.
 
-- `docs/current-state.md`
-- `docs/minimal-experiment-plan.md`
-- `docs/request-inspector.md`
+That sharper direction is:
+- **TrustPlane** — an operator-facing control layer for governed agent work
+
+## Related reading
+
+- AgentJournal article: **The control layer in AI-assisted IT operations**
+- AgentJournal article: **Trust is the real adoption curve in AI-assisted IT operations**
+- AgentJournal article: **The control plane starts at intake**
+
+## Why this exists
+
+The point of ai-it-team is not to claim that AI can run IT on its own.
+The point is to explore what kinds of state, workflow structure, human checkpoints, and visibility have to exist before AI-assisted IT work becomes believable.
